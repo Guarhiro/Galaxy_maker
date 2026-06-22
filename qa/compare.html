@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Design QA Comparison</title>
+  <style>
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      background: #05080e;
+      color: #f7fbff;
+      font-family: Inter, "Noto Sans JP", system-ui, sans-serif;
+    }
+
+    .wrap {
+      width: 2880px;
+      min-height: 1090px;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 18px;
+      padding: 18px;
+    }
+
+    figure {
+      margin: 0;
+      display: grid;
+      grid-template-rows: auto 1fr;
+      gap: 10px;
+      min-width: 0;
+    }
+
+    figcaption {
+      height: 34px;
+      display: flex;
+      align-items: center;
+      padding: 0 14px;
+      border: 1px solid rgba(255, 255, 255, 0.16);
+      border-radius: 8px;
+      color: rgba(247, 251, 255, 0.8);
+      background: rgba(12, 20, 32, 0.84);
+      font-size: 16px;
+      font-weight: 700;
+    }
+
+    img {
+      width: 100%;
+      height: auto;
+      display: block;
+      border: 1px solid rgba(255, 255, 255, 0.18);
+      border-radius: 8px;
+      background: #02050a;
+    }
+  </style>
+</head>
+<body>
+  <main class="wrap">
+    <figure>
+      <figcaption>Source Visual - Option 1</figcaption>
+      <img src="./source-option-1.png" alt="Source visual option 1" />
+    </figure>
+    <figure>
+      <figcaption>Implementation - 1440 x 1024</figcaption>
+      <img src="./implementation-edit-1440x1024.png" alt="Implemented star gallery demo" />
+    </figure>
+  </main>
+</body>
+</html>
