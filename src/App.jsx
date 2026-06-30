@@ -1521,6 +1521,10 @@ function pickFeatureStar() {
   return stars.find((star) => star.id === featureId);
 }
 
+function pickZoomedStar() {
+  return stars.find((star) => star.id === zoomedId);
+}
+
 function setSelected(id) {
   selectedId = id;
   render();
@@ -1696,10 +1700,10 @@ function closeZoom() {
 
 function render() {
   const selected = pickStar();
-  const featureStar = pickFeatureStar();
-  const featureBgmUrl = featureStar && featureStar.bgmUrl ? featureStar.bgmUrl : "";
-  const currentBgm = featureBgmUrl || globalBgmUrl;
-  const currentBgmIsGallery = !featureBgmUrl;
+  const workBgmStar = pickFeatureStar() || pickZoomedStar();
+  const workBgmUrl = workBgmStar && workBgmStar.bgmUrl ? workBgmStar.bgmUrl : "";
+  const currentBgm = workBgmUrl || globalBgmUrl;
+  const currentBgmIsGallery = !workBgmUrl;
   map.querySelectorAll(".star-button").forEach((node) => node.remove());
   stars.forEach((star, index) => {
     const button = document.createElement("button");
@@ -2006,9 +2010,9 @@ function App() {
     [zoomedStarId, stars],
   );
 
-  const activePopupBgmUrl = activePopupStar?.bgmUrl || "";
-  const effectiveBgmUrl = activePopupBgmUrl || globalBgmUrl;
-  const effectiveBgmIsGallery = !activePopupBgmUrl;
+  const activeWorkBgmUrl = activePopupStar?.bgmUrl || zoomedStar?.bgmUrl || "";
+  const effectiveBgmUrl = activeWorkBgmUrl || globalBgmUrl;
+  const effectiveBgmIsGallery = !activeWorkBgmUrl;
   const hasPendingDataImageMigration = useMemo(
     () => hasDataImageAssets(stars, backgroundImageUrl),
     [stars, backgroundImageUrl],
