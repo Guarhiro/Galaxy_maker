@@ -329,7 +329,7 @@ function makeDefaultStars() {
       y,
       z: Number((1 + index * 0.17).toFixed(2)),
       imageUrl: makeStarImage(color, index),
-      bgmUrl: index === 0 ? ETERNIA_BGM_URL : "",
+      bgmUrl: index === 0 || index === 13 ? ETERNIA_BGM_URL : "",
       ...makeFeatureDefaults(name, index, description),
       updatedAt: new Date(Date.now() - index * 900000).toISOString(),
     };

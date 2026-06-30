@@ -127,7 +127,7 @@ GitHub Pages（`docs/` 公開）では、次の音源をリポジトリ内に配
 | 用途 | ファイル |
 | --- | --- |
 | 一覧画面BGM | `docs/assets/audio/gallery.mp3` |
-| エテルニア・ステラリアBGM | `docs/assets/audio/ginga-wa-warawa-no-teatime.mp3` |
+| STAR14 / エテルニア・ステラリアBGM | `docs/assets/audio/ginga-wa-warawa-no-teatime.mp3` |
 
 編集画面では `public/assets/audio/` 側の同名ファイルを参照します。作品詳細を開くと作品BGMへ切り替わり、閉じると一覧BGMの止まった秒数から再開します。
 
