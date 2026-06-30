@@ -20,6 +20,9 @@ import {
 import backgroundUrl from "./assets/stellar-map-background.png";
 
 const STORAGE_KEY = "a-plan-star-gallery-demo";
+const IMAGE_DB_NAME = "a-plan-star-gallery-images";
+const IMAGE_STORE_NAME = "images";
+const IMAGE_REF_PREFIX = "indexeddb-image:";
 const MAX_STARS = 20;
 const DEFAULT_BACKGROUND_URL = backgroundUrl;
 
@@ -100,18 +103,120 @@ const PARTICLES = Array.from({ length: 34 }, (_, index) => ({
   duration: `${9 + (index % 7)}s`,
 }));
 
+const PLANET_FIELDS = [
+  { key: "planetClass", label: "惑星分類" },
+  { key: "planetRadius", label: "半径" },
+  { key: "planetGravity", label: "重力" },
+  { key: "planetSeaLandRatio", label: "海陸比" },
+  { key: "planetAtmosphereColor", label: "大気色" },
+  { key: "planetOceanColor", label: "海の色" },
+  { key: "planetCloudCover", label: "雲量" },
+  { key: "planetIceCaps", label: "氷冠" },
+  { key: "planetRotation", label: "自転周期" },
+  { key: "planetOrbitalPeriod", label: "公転周期" },
+  { key: "planetMoons", label: "衛星" },
+  { key: "planetRings", label: "環" },
+];
+const MAX_CHARACTERS_PER_STAR = 12;
+
+function makeCharacterDefaults(name, index = 0, description = "") {
+  const fallbackName = name || `キャラクター ${index + 1}`;
+
+  return {
+    id: `character-${index + 1}`,
+    name: fallbackName,
+    imageUrl: "",
+    description:
+      description ||
+      `${fallbackName}の紹介テキストをここに入力します。\n画像と詳細文はキャラクターごとに管理できます。`,
+  };
+}
+
+function normalizeCharacter(character, index, fallbackName, fallbackDescription = "") {
+  const name = character?.name ?? fallbackName ?? `キャラクター ${index + 1}`;
+
+  return {
+    id: character?.id || `character-${index + 1}`,
+    name,
+    imageUrl: character?.imageUrl ?? character?.standingImageUrl ?? "",
+    description:
+      character?.description ??
+      character?.pastedText ??
+      fallbackDescription ??
+      `${name}の紹介テキストをここに入力します。`,
+  };
+}
+
+function getPrimaryCharacterFields(characters, fallbackName = "", fallbackDescription = "") {
+  const first = characters[0] || makeCharacterDefaults(fallbackName, 0, fallbackDescription);
+
+  return {
+    characterName: first.name,
+    standingImageUrl: first.imageUrl,
+    pastedText: first.description,
+  };
+}
+
+function normalizeCharacters(star, featureDefaults) {
+  const fallbackCharacter = {
+    id: "character-1",
+    name: star?.characterName ?? featureDefaults.characterName,
+    imageUrl: star?.standingImageUrl ?? featureDefaults.standingImageUrl,
+    description: star?.pastedText ?? featureDefaults.pastedText,
+  };
+  const sourceCharacters =
+    Array.isArray(star?.characters) && star.characters.length > 0 ? star.characters : [fallbackCharacter];
+
+  return sourceCharacters.slice(0, MAX_CHARACTERS_PER_STAR).map((character, index) =>
+    normalizeCharacter(
+      character,
+      index,
+      index === 0 ? fallbackCharacter.name : `キャラクター ${index + 1}`,
+      index === 0 ? fallbackCharacter.description : "",
+    ),
+  );
+}
+
+function getDisplayCharacters(star) {
+  if (Array.isArray(star?.characters) && star.characters.length > 0) {
+    return star.characters;
+  }
+
+  return [
+    normalizeCharacter(
+      {
+        id: "character-1",
+        name: star?.characterName || star?.name || "キャラクター 1",
+        imageUrl: star?.standingImageUrl || "",
+        description: star?.pastedText || star?.description || "",
+      },
+      0,
+      star?.name || "キャラクター 1",
+      star?.description || "",
+    ),
+  ];
+}
+
 function makeFeatureDefaults(name, index, description = "") {
+  const pastedText =
+    index === 0
+      ? "黄金航路を渡る観測者。\n静かな光の奥に、まだ誰にも開かれていない記録を抱えている。"
+      : `${name}の紹介テキストをここに貼り付けます。\n改行を入れた文章も、そのまま公開ポップアップに反映されます。`;
+
   return {
     creatorName: index === 0 ? "星詠み工房" : `Creator ${String(index + 1).padStart(2, "0")}`,
     characterName: name,
     standingImageUrl: "",
     sceneImageUrl: "",
-    pastedText:
+    pastedText,
+    characters: [makeCharacterDefaults(name, 0, pastedText)],
+    workDescription:
       index === 0
-        ? "黄金航路を渡る観測者。\n静かな光の奥に、まだ誰にも開かれていない記録を抱えている。"
-        : `${name}の紹介テキストをここに貼り付けます。\n改行を入れた文章も、そのまま公開ポップアップに反映されます。`,
+        ? "黄金色の星図に導かれた観測者たちが、失われた航路の記録を辿っていく幻想冒険譚です。"
+        : `${name}の作品紹介文をここに入力します。`,
     workTitle: index === 0 ? "黄金航路の記録" : `${name}の作品`,
     workUrl: "",
+    ...Object.fromEntries(PLANET_FIELDS.map(({ key }) => [key, ""])),
   };
 }
 
@@ -234,6 +339,12 @@ function normalizeStar(star, index) {
   const name = star?.name || STAR_NAMES[index % STAR_NAMES.length] || `星 ${index + 1}`;
   const description = star?.description || `${name}の説明をここに入力できます。`;
   const featureDefaults = makeFeatureDefaults(name, index, description);
+  const characters = normalizeCharacters(star, featureDefaults);
+  const primaryCharacter = getPrimaryCharacterFields(
+    characters,
+    featureDefaults.characterName,
+    featureDefaults.pastedText,
+  );
 
   return {
     id: star?.id || `star-${index + 1}`,
@@ -247,12 +358,15 @@ function normalizeStar(star, index) {
     imageUrl: star?.imageUrl || makeStarImage(color, index),
     bgmUrl: star?.bgmUrl || "",
     creatorName: star?.creatorName ?? featureDefaults.creatorName,
-    characterName: star?.characterName ?? featureDefaults.characterName,
-    standingImageUrl: star?.standingImageUrl ?? featureDefaults.standingImageUrl,
+    characterName: primaryCharacter.characterName,
+    standingImageUrl: primaryCharacter.standingImageUrl,
     sceneImageUrl: star?.sceneImageUrl ?? featureDefaults.sceneImageUrl,
-    pastedText: star?.pastedText ?? featureDefaults.pastedText,
+    pastedText: primaryCharacter.pastedText,
+    characters,
+    workDescription: star?.workDescription ?? featureDefaults.workDescription,
     workTitle: star?.workTitle ?? featureDefaults.workTitle,
     workUrl: star?.workUrl ?? featureDefaults.workUrl,
+    ...Object.fromEntries(PLANET_FIELDS.map(({ key }) => [key, star?.[key] ?? ""])),
     updatedAt: star?.updatedAt || new Date().toISOString(),
   };
 }
@@ -278,6 +392,7 @@ function formatDate(value) {
 
 function shortUrl(value) {
   if (!value) return "未設定";
+  if (isIndexedDbImageRef(value)) return "ローカル画像";
   try {
     const url = new URL(value);
     const parts = url.pathname.split("/").filter(Boolean);
@@ -317,6 +432,170 @@ function readFileAsDataUrl(file) {
   return blobToDataUrl(file);
 }
 
+function isIndexedDbImageRef(value) {
+  return typeof value === "string" && value.startsWith(IMAGE_REF_PREFIX);
+}
+
+function isDataImageUrl(value) {
+  return typeof value === "string" && value.startsWith("data:image/");
+}
+
+function imageRefFromId(id) {
+  return `${IMAGE_REF_PREFIX}${id}`;
+}
+
+function imageIdFromRef(ref) {
+  return isIndexedDbImageRef(ref) ? ref.slice(IMAGE_REF_PREFIX.length) : "";
+}
+
+function makeImageStorageId() {
+  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+    return crypto.randomUUID();
+  }
+  return `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+}
+
+function openImageDb() {
+  if (typeof indexedDB === "undefined") {
+    return Promise.reject(new Error("IndexedDB is not available"));
+  }
+
+  return new Promise((resolve, reject) => {
+    const request = indexedDB.open(IMAGE_DB_NAME, 1);
+    request.onupgradeneeded = () => {
+      const db = request.result;
+      if (!db.objectStoreNames.contains(IMAGE_STORE_NAME)) {
+        db.createObjectStore(IMAGE_STORE_NAME, { keyPath: "id" });
+      }
+    };
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => reject(request.error || new Error("Failed to open image database"));
+  });
+}
+
+async function putIndexedDbImage(dataUrl) {
+  if (!dataUrl) return "";
+  const db = await openImageDb();
+  const id = makeImageStorageId();
+
+  return new Promise((resolve, reject) => {
+    const transaction = db.transaction(IMAGE_STORE_NAME, "readwrite");
+    transaction.objectStore(IMAGE_STORE_NAME).put({
+      id,
+      dataUrl,
+      updatedAt: new Date().toISOString(),
+    });
+    transaction.oncomplete = () => {
+      db.close();
+      resolve(imageRefFromId(id));
+    };
+    transaction.onerror = () => {
+      db.close();
+      reject(transaction.error || new Error("Failed to store image"));
+    };
+  });
+}
+
+async function readIndexedDbImage(ref) {
+  const id = imageIdFromRef(ref);
+  if (!id) return "";
+  const db = await openImageDb();
+
+  return new Promise((resolve, reject) => {
+    const transaction = db.transaction(IMAGE_STORE_NAME, "readonly");
+    const request = transaction.objectStore(IMAGE_STORE_NAME).get(id);
+    request.onsuccess = () => resolve(request.result?.dataUrl || "");
+    request.onerror = () => reject(request.error || new Error("Failed to read image"));
+    transaction.oncomplete = () => db.close();
+    transaction.onerror = () => db.close();
+  });
+}
+
+async function storeFileAsIndexedDbImage(file) {
+  const dataUrl = await readFileAsDataUrl(file);
+  if (!dataUrl) return { ref: "", dataUrl: "" };
+  const ref = await putIndexedDbImage(dataUrl);
+  return { ref, dataUrl };
+}
+
+function collectImageValues(stars, backgroundImageUrl) {
+  const values = [backgroundImageUrl];
+  stars.forEach((star) => {
+    values.push(star.imageUrl, star.sceneImageUrl, star.standingImageUrl);
+    if (Array.isArray(star.characters)) {
+      star.characters.forEach((character) => values.push(character.imageUrl));
+    }
+  });
+  return values.filter(Boolean);
+}
+
+function hasDataImageAssets(stars, backgroundImageUrl) {
+  return collectImageValues(stars, backgroundImageUrl).some(isDataImageUrl);
+}
+
+function collectIndexedDbImageRefs(stars, backgroundImageUrl) {
+  return Array.from(new Set(collectImageValues(stars, backgroundImageUrl).filter(isIndexedDbImageRef)));
+}
+
+async function migrateDataImageAssets(stars, backgroundImageUrl) {
+  const dataUrlToRef = new Map();
+  const imageCache = {};
+  let changed = false;
+
+  async function migrateValue(value) {
+    if (!isDataImageUrl(value)) return value;
+    if (!dataUrlToRef.has(value)) {
+      const ref = await putIndexedDbImage(value);
+      dataUrlToRef.set(value, ref);
+      imageCache[ref] = value;
+    }
+    changed = true;
+    return dataUrlToRef.get(value);
+  }
+
+  const migratedBackgroundImageUrl = await migrateValue(backgroundImageUrl);
+  const migratedStars = await Promise.all(
+    stars.map(async (star) => {
+      const characters = Array.isArray(star.characters)
+        ? await Promise.all(
+            star.characters.map(async (character) => ({
+              ...character,
+              imageUrl: await migrateValue(character.imageUrl),
+            })),
+          )
+        : star.characters;
+      const migratedStar = {
+        ...star,
+        imageUrl: await migrateValue(star.imageUrl),
+        sceneImageUrl: await migrateValue(star.sceneImageUrl),
+        standingImageUrl: await migrateValue(star.standingImageUrl),
+        characters,
+      };
+      if (Array.isArray(characters) && characters.length > 0) {
+        Object.assign(migratedStar, getPrimaryCharacterFields(characters, star.name, star.description));
+      }
+      return migratedStar;
+    }),
+  );
+
+  return {
+    changed,
+    stars: migratedStars,
+    backgroundImageUrl: migratedBackgroundImageUrl,
+    imageCache,
+  };
+}
+
+function resolveStoredImageSource(value, imageCache) {
+  if (!value) return "";
+  if (isIndexedDbImageRef(value)) return imageCache[value] || "";
+  return value;
+}
+
+function editableImageValue(value) {
+  return isIndexedDbImageRef(value) ? "" : value || "";
+}
+
 function readStoredConfig() {
   try {
     return JSON.parse(localStorage.getItem(STORAGE_KEY) || "{}");
@@ -329,6 +608,15 @@ function readStoredConfig() {
 async function embedAsset(source) {
   if (!source || source.startsWith("data:")) {
     return { value: source || "", embedded: Boolean(source) };
+  }
+
+  if (isIndexedDbImageRef(source)) {
+    try {
+      const value = await readIndexedDbImage(source);
+      return { value, embedded: Boolean(value) };
+    } catch {
+      return { value: "", embedded: false };
+    }
   }
 
   try {
@@ -493,6 +781,7 @@ button { font: inherit; }
 .map {
   position: absolute;
   inset: 0 360px 0 0;
+  transition: transform 0.8s var(--ease-spring);
 }
 .orbit {
   position: absolute;
@@ -567,21 +856,6 @@ button { font: inherit; }
   filter: drop-shadow(0 0 10px var(--c)) blur(2px) saturate(.85);
 }
 .map.is-feature-open .orbit { opacity: .25; transition: opacity 260ms ease; }
-.star-label {
-  position: absolute;
-  z-index: 3;
-  left: 50%;
-  top: calc(100% - 4px);
-  transform: translateX(-50%);
-  min-width: 28px;
-  padding: 3px 7px;
-  border-radius: 5px;
-  border: 1px solid rgba(255,255,255,.22);
-  background: rgba(2,7,13,.78);
-  color: rgba(246,251,255,.9);
-  font-size: 12px;
-  line-height: 1;
-}
 .public-detail {
   position: absolute;
   right: 0;
@@ -689,9 +963,9 @@ button { font: inherit; }
   position: relative;
   width: min(960px, calc(100vw - 44px));
   max-height: calc(100svh - 48px);
-  display: grid;
-  grid-template-columns: minmax(230px, .92fr) minmax(320px, 1.08fr);
-  gap: 22px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
   padding: 24px;
   border: 1px solid rgba(255,255,255,.16);
   border-radius: var(--r-xl);
@@ -704,32 +978,58 @@ button { font: inherit; }
   transform-origin: center;
   animation: featureEmanate .46s var(--ease-spring) both;
 }
+.feature-modal::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  padding: 1px;
+  background: linear-gradient(150deg, color-mix(in srgb, var(--feature-color, #ffd34d), white 10%), transparent 42%, color-mix(in srgb, var(--aqua), transparent 30%));
+  -webkit-mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  opacity: .5;
+  pointer-events: none;
+}
 .feature-overlay.is-closing .feature-modal { animation: featureCollapse .3s var(--ease-out) both; }
-.feature-modal .feature-character,
+.feature-modal .feature-hero,
 .feature-modal .feature-kicker,
-.feature-modal .feature-copy h2,
-.feature-modal .feature-work,
-.feature-modal .feature-text,
-.feature-modal .feature-link {
+.feature-modal .feature-work-details h2,
+.feature-modal .feature-work-description,
+.feature-modal .feature-link,
+.feature-modal .feature-section-title,
+.feature-modal .feature-character,
+.feature-modal .feature-character-name,
+.feature-modal .feature-character-text {
   animation: featureContentIn .46s var(--ease-out) both;
 }
-.feature-modal .feature-character { animation-delay: 90ms; }
+.feature-modal .feature-hero { animation-delay: 90ms; }
 .feature-modal .feature-kicker { animation-delay: 150ms; }
-.feature-modal .feature-copy h2 { animation-delay: 200ms; }
-.feature-modal .feature-work { animation-delay: 255ms; }
-.feature-modal .feature-text { animation-delay: 310ms; }
-.feature-modal .feature-link { animation-delay: 365ms; }
-.feature-overlay.is-closing .feature-character,
+.feature-modal .feature-work-details h2 { animation-delay: 200ms; }
+.feature-modal .feature-work-description { animation-delay: 255ms; }
+.feature-modal .feature-link { animation-delay: 310ms; }
+.feature-modal .feature-section-title { animation-delay: 365ms; }
+.feature-modal .feature-character { animation-delay: 420ms; }
+.feature-modal .feature-character-name { animation-delay: 475ms; }
+.feature-modal .feature-character-text { animation-delay: 530ms; }
+.feature-overlay.is-closing .feature-hero,
 .feature-overlay.is-closing .feature-kicker,
-.feature-overlay.is-closing .feature-copy h2,
-.feature-overlay.is-closing .feature-work,
-.feature-overlay.is-closing .feature-text,
-.feature-overlay.is-closing .feature-link { animation: none; }
+.feature-overlay.is-closing .feature-work-details h2,
+.feature-overlay.is-closing .feature-work-description,
+.feature-overlay.is-closing .feature-link,
+.feature-overlay.is-closing .feature-section-title,
+.feature-overlay.is-closing .feature-character,
+.feature-overlay.is-closing .feature-character-name,
+.feature-overlay.is-closing .feature-character-text { animation: none; }
 .feature-close {
   position: absolute;
   right: 14px;
   top: 14px;
   z-index: 2;
+  display: inline-grid;
+  place-items: center;
   width: 38px;
   height: 38px;
   border: 1px solid rgba(255,255,255,.16);
@@ -741,8 +1041,8 @@ button { font: inherit; }
 #featureBody {
   display: contents;
 }
-.feature-character,
-.feature-scene {
+.feature-hero,
+.feature-character {
   display: grid;
   place-items: center;
   min-height: 0;
@@ -753,22 +1053,83 @@ button { font: inherit; }
     rgba(0,0,0,.28);
   overflow: hidden;
 }
+.feature-hero {
+  width: 100%;
+  flex: 0 0 auto;
+  min-height: clamp(280px, 52vw, 560px);
+  padding: 12px;
+  background:
+    radial-gradient(circle at center, color-mix(in srgb, var(--feature-color, #ffd34d), transparent 70%), transparent 62%),
+    color-mix(in srgb, var(--feature-color, #ffd34d), #050a13 84%);
+}
+.feature-hero img {
+  display: block;
+  width: auto;
+  height: auto;
+  max-width: 100%;
+  max-height: min(72svh, 760px);
+  object-fit: contain;
+}
 .feature-character {
-  min-height: 460px;
+  min-height: 420px;
 }
 .feature-character img {
+  display: block;
   width: 100%;
-  height: 100%;
-  max-height: 62vh;
+  height: min(58svh, 560px);
+  max-height: 58svh;
   object-fit: contain;
   filter: drop-shadow(0 22px 38px rgba(0,0,0,.45));
 }
-.feature-copy {
+.feature-work-details,
+.feature-character-intro,
+.feature-character-copy {
   min-width: 0;
   display: flex;
   flex-direction: column;
   gap: 14px;
-  padding: 10px 6px 4px;
+}
+.feature-work-details {
+  padding: 0 6px;
+}
+.feature-character-intro {
+  padding: 4px 6px 0;
+}
+.feature-character-copy {
+  gap: 10px;
+}
+
+.feature-character-list {
+  display: grid;
+  gap: 16px;
+}
+
+.feature-character-card {
+  display: grid;
+  grid-template-columns: minmax(220px, 0.78fr) minmax(0, 1fr);
+  gap: 18px;
+  align-items: stretch;
+  padding: 14px;
+  border: 1px solid rgba(247, 251, 255, 0.12);
+  border-radius: 8px;
+  background: rgba(247, 251, 255, 0.035);
+}
+
+.feature-character-card .feature-character {
+  min-height: 300px;
+}
+
+.feature-character-card .feature-character img {
+  height: min(42svh, 420px);
+  max-height: 42svh;
+}
+
+.feature-character-index {
+  color: var(--aqua);
+  font-family: var(--font-celestial);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.22em;
 }
 .feature-kicker {
   margin: 0;
@@ -779,46 +1140,24 @@ button { font: inherit; }
   letter-spacing: .26em;
   text-transform: uppercase;
 }
-.feature-copy h2 {
+.feature-work-details h2 {
   margin: 0;
-  padding-right: 38px;
   color: #fff8d8;
-  font-size: clamp(28px, 4.2vw, 52px);
+  font-size: clamp(28px, 3rem, 46px);
   line-height: 1.05;
   overflow-wrap: anywhere;
 }
-.feature-work {
-  display: grid;
-  grid-template-columns: 142px 1fr;
-  gap: 14px;
-  align-items: stretch;
-}
-.feature-scene {
-  aspect-ratio: 16 / 10;
-}
-.feature-scene img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-}
-.feature-work-meta {
-  display: grid;
-  align-content: center;
-  gap: 6px;
-  min-width: 0;
-}
-.feature-work-meta span {
-  color: rgba(226,239,251,.58);
-  font-size: 12px;
-  font-weight: 800;
-}
-.feature-work-meta strong {
+.feature-section-title {
+  margin: 0;
   color: #f7fbff;
-  font-size: 18px;
+  font-size: 16px;
+  font-weight: 850;
   overflow-wrap: anywhere;
 }
-.feature-work-meta small {
-  color: rgba(226,239,251,.62);
+.feature-character-name {
+  color: #fff8d8;
+  font-size: 24px;
+  font-weight: 850;
   overflow-wrap: anywhere;
 }
 .feature-text {
@@ -828,8 +1167,11 @@ button { font: inherit; }
   color: rgba(226,239,251,.84);
   background: rgba(255,255,255,.045);
   line-height: 1.8;
-  white-space: normal;
+  white-space: pre-line;
   overflow-wrap: anywhere;
+}
+.feature-work-description {
+  min-height: 112px;
 }
 .feature-link {
   display: inline-flex;
@@ -900,6 +1242,113 @@ button { font: inherit; }
   16% { opacity: 0; transform: translate(150vw, 80vh) rotate(28deg); }
   100% { opacity: 0; transform: translate(150vw, 80vh) rotate(28deg); }
 }
+.map.is-zoomed {
+  transform-origin: calc(var(--zoom-x) * 1%) calc(var(--zoom-y) * 1%);
+  transform: scale(3.5);
+}
+.map.is-zoomed .star-button:not(.zoom-target) {
+  opacity: .12;
+  filter: blur(4px) saturate(.6);
+  pointer-events: none;
+  transition: opacity 700ms ease, filter 700ms ease;
+}
+.map.is-zoomed .star-button.zoom-target {
+  z-index: 12;
+  animation: none;
+  filter: drop-shadow(0 0 40px var(--c)) drop-shadow(0 0 90px rgba(255,255,255,.3)) brightness(1.4);
+  pointer-events: none;
+}
+.map.is-zoomed .star-button.zoom-target::before {
+  animation: none; opacity: 1; inset: 2%;
+  box-shadow: 0 0 40px var(--c), 0 0 80px rgba(255,255,255,.35);
+}
+.map.is-zoomed .orbit { opacity: .1; transition: opacity 700ms ease; }
+.public-main.is-zoomed .map { inset: 0; }
+.public-main.is-zoomed .public-detail { display: none; }
+.star-zoom-backdrop {
+  position: fixed; z-index: 15; inset: 0;
+  background: rgba(1,3,8,.3);
+  animation: featureFade 800ms ease-out;
+}
+.star-zoom-backdrop.is-closing { animation: featureFade 400ms ease-out reverse forwards; }
+.star-zoom-backdrop[hidden] { display: none; }
+.star-detail-sheet {
+  position: fixed; z-index: 16; bottom: 0; left: 50%;
+  transform: translateX(-50%);
+  width: min(520px, calc(100vw - 32px));
+  max-height: 55vh;
+  padding: 28px 24px 24px;
+  border: 1px solid rgba(255,255,255,.16);
+  border-bottom: none;
+  border-radius: 24px 24px 0 0;
+  color: #f6fbff;
+  background: linear-gradient(180deg, rgba(8,14,24,.95), rgba(4,8,16,.92));
+  backdrop-filter: blur(24px) saturate(1.15);
+  box-shadow: 0 -20px 60px rgba(0,0,0,.4), 0 -1px 0 rgba(255,255,255,.06) inset;
+  overflow-y: auto;
+  animation: sheetSlideUp 600ms var(--ease-spring);
+}
+.star-detail-sheet.is-closing { animation: sheetSlideDown 400ms var(--ease-out) forwards; }
+.star-detail-sheet[hidden] { display: none; }
+.star-detail-close {
+  position: absolute; z-index: 2; top: 14px; right: 14px;
+  display: inline-grid; place-items: center;
+  width: 38px; height: 38px;
+  border: 1px solid rgba(255,255,255,.16);
+  border-radius: 8px; color: #f7fbff;
+  background: rgba(3,8,15,.68); cursor: pointer;
+}
+.star-detail-header { margin-bottom: 14px; }
+.star-detail-header span {
+  color: #ffd34d; font-family: var(--font-celestial);
+  font-size: 13px; font-weight: 600; letter-spacing: .24em;
+}
+.star-detail-header h2 {
+  margin: 8px 0 0; padding-right: 42px;
+  font-size: 26px; font-weight: 700; line-height: 1.25;
+}
+.star-detail-desc {
+  margin: 14px 0 18px; color: rgba(226,239,251,.78);
+  font-size: 14px; line-height: 1.8;
+}
+.star-detail-meta {
+  display: grid; gap: 10px; padding: 18px 0;
+  border-top: 1px solid rgba(255,255,255,.12);
+  border-bottom: 1px solid rgba(255,255,255,.12);
+  margin-bottom: 20px;
+}
+.star-detail-meta > div {
+  display: grid; grid-template-columns: 80px 1fr;
+  align-items: center; gap: 12px;
+}
+.star-detail-meta span { color: rgba(226,239,251,.64); font-size: 13px; }
+.star-detail-meta strong { color: rgba(247,251,255,.9); font-size: 13px; font-weight: 650; }
+.star-detail-work-btn {
+  display: flex; align-items: center; justify-content: center;
+  width: 100%; min-height: 48px; border: none; border-radius: 10px;
+  color: #061018; font-size: 15px; font-weight: 850;
+  background: linear-gradient(135deg, #ffd34d, #6fe7c8);
+  box-shadow: 0 0 28px rgba(255,211,77,.16); cursor: pointer;
+}
+.star-detail-work-btn:hover { transform: translateY(-1px); box-shadow: 0 0 34px rgba(111,231,200,.22); }
+.star-detail-sheet .star-detail-header,
+.star-detail-sheet .star-detail-desc,
+.star-detail-sheet .star-detail-meta,
+.star-detail-sheet .star-detail-work-btn {
+  animation: featureContentIn 460ms var(--ease-out) both;
+}
+.star-detail-sheet .star-detail-header { animation-delay: 50ms; }
+.star-detail-sheet .star-detail-desc { animation-delay: 130ms; }
+.star-detail-sheet .star-detail-meta { animation-delay: 210ms; }
+.star-detail-sheet .star-detail-work-btn { animation-delay: 290ms; }
+@keyframes sheetSlideUp {
+  from { opacity: 0; transform: translateX(-50%) translateY(100%); }
+  to { opacity: 1; transform: translateX(-50%) translateY(0); }
+}
+@keyframes sheetSlideDown {
+  from { opacity: 1; transform: translateX(-50%) translateY(0); }
+  to { opacity: 0; transform: translateX(-50%) translateY(100%); }
+}
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
     animation-duration: .001ms !important;
@@ -907,12 +1356,15 @@ button { font: inherit; }
     transition-duration: .001ms !important;
   }
   .feature-overlay, .feature-modal,
-  .feature-modal .feature-character, .feature-modal .feature-kicker, .feature-modal .feature-copy h2,
-  .feature-modal .feature-work, .feature-modal .feature-text, .feature-modal .feature-link {
+  .feature-modal .feature-hero, .feature-modal .feature-kicker, .feature-modal .feature-work-details h2,
+  .feature-modal .feature-work-description, .feature-modal .feature-link, .feature-modal .feature-section-title,
+  .feature-modal .feature-character, .feature-modal .feature-character-name, .feature-modal .feature-character-text {
     animation: featureFade .16s ease-out both;
   }
   .star-button.feature-active { transform: translate(-50%, -50%) scale(1.7); }
   .shooting-star { display: none; }
+  .map { transition-duration: .001ms !important; }
+  .star-detail-sheet { animation: featureFade .16s ease-out !important; }
 }
 @media (max-width: 900px) {
   body { overflow: auto; }
@@ -929,14 +1381,36 @@ button { font: inherit; }
     border-top: 1px solid rgba(174,207,235,.2);
   }
   .feature-modal {
-    grid-template-columns: 1fr;
+    width: min(760px, calc(100vw - 28px));
+    max-height: calc(100svh - 28px);
+    gap: 18px;
+    padding: 18px;
+  }
+  .feature-hero {
+    min-height: clamp(260px, 64vw, 520px);
+    padding: 10px;
+  }
+  .feature-hero img {
+    max-height: min(62svh, 620px);
   }
   .feature-character {
     min-height: 360px;
   }
-  .feature-work {
+  .feature-character img {
+    height: min(52svh, 500px);
+  }
+
+
+  .feature-character-card {
     grid-template-columns: 1fr;
   }
+
+  .feature-character-card .feature-character img {
+    height: min(46svh, 430px);
+    max-height: 46svh;
+  }
+  .star-detail-sheet { width: 100%; max-height: 50vh; border-radius: 20px 20px 0 0; }
+  .map.is-zoomed { transform: scale(2.5); }
 }
 </style>
 </head>
@@ -958,7 +1432,7 @@ button { font: inherit; }
       <audio id="bgm" loop src="${bgmUrl || ""}"></audio>
     </div>
   </header>
-  <main class="public-main">
+  <main class="public-main" id="publicMain">
     <section class="map" id="map">
       <span class="orbit" style="--w: 46vw; --h: 18vw; --r: -14deg; --d: 72s"></span>
       <span class="orbit" style="--w: 66vw; --h: 28vw; --r: 18deg; --d: 88s"></span>
@@ -967,6 +1441,8 @@ button { font: inherit; }
     <aside class="public-detail" id="detail"></aside>
   </main>
 </div>
+<div class="star-zoom-backdrop" id="zoomBackdrop" hidden></div>
+<div class="star-detail-sheet" id="starDetailSheet" hidden></div>
 <div class="feature-overlay" id="featureOverlay" hidden>
   <section class="feature-modal" id="featureModal" role="dialog" aria-modal="true" aria-label="作品詳細">
     <button class="feature-close" id="featureClose" type="button" aria-label="閉じる">×</button>
@@ -977,9 +1453,14 @@ button { font: inherit; }
 const stars = ${escapeJsonForHtml(stars)};
 let selectedId = ${JSON.stringify(selectedId)};
 let featureId = "";
+let zoomedId = "";
+let zoomDetailTimer = null;
 const globalBgmUrl = ${JSON.stringify(bgmUrl || "")};
 const map = document.getElementById("map");
 const detail = document.getElementById("detail");
+const publicMain = document.getElementById("publicMain");
+const zoomBackdrop = document.getElementById("zoomBackdrop");
+const starDetailSheet = document.getElementById("starDetailSheet");
 const audio = document.getElementById("bgm");
 const audioToggle = document.getElementById("audioToggle");
 const featureOverlay = document.getElementById("featureOverlay");
@@ -1034,11 +1515,35 @@ function setSelected(id) {
   render();
 }
 
-function renderImageOrEmpty(src, className, label, alt) {
+function renderImageOrEmpty(src, className, label, alt, tagName = "div") {
+  const tag = tagName === "section" ? "section" : "div";
   if (!src) {
-    return '<div class="' + className + '"><div class="feature-empty">' + escapeHtml(label) + '</div></div>';
+    return '<' + tag + ' class="' + className + '"><div class="feature-empty">' + escapeHtml(label) + '</div></' + tag + '>';
   }
-  return '<div class="' + className + '"><img alt="' + escapeAttr(alt) + '" src="' + escapeAttr(src) + '" /></div>';
+  return '<' + tag + ' class="' + className + '"><img alt="' + escapeAttr(alt) + '" src="' + escapeAttr(src) + '" /></' + tag + '>';
+}
+
+function getCharacters(star) {
+  if (Array.isArray(star.characters) && star.characters.length > 0) {
+    return star.characters;
+  }
+  return [{
+    id: "character-1",
+    name: star.characterName || star.name || "キャラクター 1",
+    imageUrl: star.standingImageUrl || "",
+    description: star.pastedText || star.description || ""
+  }];
+}
+
+function renderCharacter(character, index) {
+  return '<article class="feature-character-card">' +
+    renderImageOrEmpty(character.imageUrl, "feature-character", "キャラ画像未設定", character.name || "キャラクター") +
+    '<div class="feature-character-copy">' +
+      '<span class="feature-character-index">CHARACTER ' + String(index + 1).padStart(2, "0") + '</span>' +
+      '<strong class="feature-character-name">' + escapeHtml(character.name || "未設定") + '</strong>' +
+      '<div class="feature-text feature-character-text">' + formatMultiline(character.description || "") + '</div>' +
+    '</div>' +
+  '</article>';
 }
 
 function renderFeature(star) {
@@ -1046,23 +1551,20 @@ function renderFeature(star) {
   const linkHtml = workUrl
     ? '<a class="feature-link" href="' + escapeAttr(workUrl) + '" target="_blank" rel="noreferrer">作品へ移動</a>'
     : '<span class="feature-link is-disabled">作品URL未設定</span>';
+  const characterHtml = getCharacters(star).map(renderCharacter).join('');
   featureOverlay.style.setProperty("--feature-color", star.color || "#ffd34d");
   featureBody.innerHTML =
-    renderImageOrEmpty(star.standingImageUrl, "feature-character", "立ち絵未設定", star.characterName || star.name) +
-    '<div class="feature-copy">' +
+    renderImageOrEmpty(star.sceneImageUrl, "feature-hero", "作品タイトル画像未設定", star.workTitle || star.name, "section") +
+    '<section class="feature-work-details">' +
       '<p class="feature-kicker">' + escapeHtml(star.creatorName || "Creator") + '</p>' +
-      '<h2>' + escapeHtml(star.characterName || star.name) + '</h2>' +
-      '<div class="feature-work">' +
-        renderImageOrEmpty(star.sceneImageUrl, "feature-scene", "シーン画像未設定", star.workTitle || star.name) +
-        '<div class="feature-work-meta">' +
-          '<span>作品</span>' +
-          '<strong>' + escapeHtml(star.workTitle || "未設定") + '</strong>' +
-          '<small>' + escapeHtml(shortPublicUrl(star.workUrl)) + '</small>' +
-        '</div>' +
-      '</div>' +
-      '<div class="feature-text">' + formatMultiline(star.pastedText || star.description) + '</div>' +
+      '<h2>' + escapeHtml(star.workTitle || "未設定") + '</h2>' +
+      '<div class="feature-text feature-work-description">' + formatMultiline(star.workDescription) + '</div>' +
       linkHtml +
-    '</div>';
+    '</section>' +
+    '<section class="feature-character-intro">' +
+      '<h3 class="feature-section-title">キャラクター紹介</h3>' +
+      '<div class="feature-character-list">' + characterHtml + '</div>' +
+    '</section>';
 }
 
 function setFeatureOrigin(originEl) {
@@ -1120,6 +1622,67 @@ function closeFeature() {
   }, 460);
 }
 
+function zoomToStar(id) {
+  if (zoomedId) return;
+  selectedId = id;
+  zoomedId = id;
+  var star = stars.find(function(s) { return s.id === id; });
+  if (!star) return;
+  map.style.setProperty("--zoom-x", star.x);
+  map.style.setProperty("--zoom-y", star.y);
+  map.classList.add("is-zoomed");
+  publicMain.classList.add("is-zoomed");
+  render();
+  zoomBackdrop.hidden = false;
+  zoomBackdrop.classList.remove("is-closing");
+  zoomDetailTimer = window.setTimeout(function() { showStarDetail(star); }, 1000);
+}
+
+function showStarDetail(star) {
+  var planetRows = [["planetClass","惑星分類"],["planetRadius","半径"],["planetGravity","重力"],["planetSeaLandRatio","海陸比"],["planetAtmosphereColor","大気色"],["planetOceanColor","海の色"],["planetCloudCover","雲量"],["planetIceCaps","氷冠"],["planetRotation","自転周期"],["planetOrbitalPeriod","公転周期"],["planetMoons","衛星"],["planetRings","環"]]
+    .filter(function(pair) { return star[pair[0]]; })
+    .map(function(pair) { return '<div><span>' + escapeHtml(pair[1]) + '</span><strong>' + escapeHtml(star[pair[0]]) + '</strong></div>'; })
+    .join('');
+  var bgmLabel = shortPublicUrl(star.bgmUrl || globalBgmUrl);
+  starDetailSheet.innerHTML =
+    '<button class="star-detail-close" id="starDetailClose" type="button" aria-label="閉じる">\\u00d7</button>' +
+    '<div class="star-detail-header">' +
+      '<span>STAR ' + String(stars.indexOf(star) + 1).padStart(2, "0") + '</span>' +
+      '<h2>' + escapeHtml(star.name) + '</h2>' +
+    '</div>' +
+    '<p class="star-detail-desc">' + escapeHtml(star.description) + '</p>' +
+    '<div class="star-detail-meta">' + planetRows +
+      '<div><span>BGM</span><strong>' + escapeHtml(bgmLabel) + '</strong></div>' +
+    '</div>' +
+    '<button class="star-detail-work-btn" id="starDetailWorkBtn" type="button">作品詳細を見る</button>';
+  starDetailSheet.hidden = false;
+  starDetailSheet.classList.remove("is-closing");
+  document.getElementById("starDetailClose").addEventListener("click", closeZoom);
+  document.getElementById("starDetailWorkBtn").addEventListener("click", function() {
+    var s = stars.find(function(s) { return s.id === zoomedId; });
+    if (!s) return;
+    var btn = map.querySelector('[data-star-id="' + zoomedId + '"]');
+    openFeature(zoomedId, btn);
+  });
+}
+
+function closeZoom() {
+  if (!zoomedId) return;
+  if (zoomDetailTimer) { window.clearTimeout(zoomDetailTimer); zoomDetailTimer = null; }
+  starDetailSheet.classList.add("is-closing");
+  zoomBackdrop.classList.add("is-closing");
+  map.classList.remove("is-zoomed");
+  window.setTimeout(function() {
+    starDetailSheet.hidden = true;
+    starDetailSheet.classList.remove("is-closing");
+    zoomBackdrop.hidden = true;
+    zoomBackdrop.classList.remove("is-closing");
+    zoomedId = "";
+    publicMain.classList.remove("is-zoomed");
+    render();
+  }, 900);
+}
+
 function render() {
   const selected = pickStar();
   const currentBgm = selected.bgmUrl || globalBgmUrl;
@@ -1129,7 +1692,8 @@ function render() {
     button.className =
       "star-button" +
       (star.id === selected.id ? " selected" : "") +
-      (star.id === featureId ? " feature-active" : "");
+      (star.id === featureId ? " feature-active" : "") +
+      (star.id === zoomedId ? " zoom-target" : "");
     button.style.setProperty("--x", star.x);
     button.style.setProperty("--y", star.y);
     button.style.setProperty("--s", star.size);
@@ -1137,8 +1701,8 @@ function render() {
     button.style.animationDelay = (index % 6) * -.42 + "s";
     button.setAttribute("aria-label", star.name);
     button.dataset.starId = star.id;
-    button.innerHTML = '<img alt="" src="' + escapeAttr(star.imageUrl) + '" /><span class="star-label">' + String(index + 1).padStart(2, "0") + '</span>';
-    button.addEventListener("click", (event) => openFeature(star.id, event.currentTarget));
+    button.innerHTML = '<img alt="" src="' + escapeAttr(star.imageUrl) + '" />';
+    button.addEventListener("click", (event) => zoomToStar(star.id, event.currentTarget));
     map.appendChild(button);
   });
   detail.style.setProperty("--c", selected.color);
@@ -1149,9 +1713,7 @@ function render() {
     <p>\${escapeHtml(selected.description)}</p>
     <div class="meta-grid">
       <div class="meta-row"><span>制作者</span><strong>\${escapeHtml(selected.creatorName || "未設定")}</strong></div>
-      <div class="meta-row"><span>色</span><strong><span class="swatch"></span>\${escapeHtml(selected.color)}</strong></div>
-      <div class="meta-row"><span>サイズ</span><strong>\${Number(selected.size).toFixed(2)} R</strong></div>
-      <div class="meta-row"><span>位置</span><strong>X \${selected.x} / Y \${selected.y} / Z \${selected.z}</strong></div>
+      \${[["planetClass","惑星分類"],["planetRadius","半径"],["planetGravity","重力"],["planetSeaLandRatio","海陸比"],["planetAtmosphereColor","大気色"],["planetOceanColor","海の色"],["planetCloudCover","雲量"],["planetIceCaps","氷冠"],["planetRotation","自転周期"],["planetOrbitalPeriod","公転周期"],["planetMoons","衛星"],["planetRings","環"]].map(([k,l]) => selected[k] ? '<div class="meta-row"><span>' + escapeHtml(l) + '</span><strong>' + escapeHtml(selected[k]) + '</strong></div>' : '').join('')}
       <div class="meta-row"><span>BGM</span><strong>\${escapeHtml(shortPublicUrl(currentBgm))}</strong></div>
     </div>\`;
   document.getElementById("audioLabel").textContent = shortPublicUrl(currentBgm);
@@ -1179,25 +1741,27 @@ audioToggle.addEventListener("click", async () => {
 featureClose.addEventListener("click", closeFeature);
 featureOverlay.addEventListener("click", closeFeature);
 featureModal.addEventListener("click", (event) => event.stopPropagation());
+zoomBackdrop.addEventListener("click", closeZoom);
 
 document.addEventListener("keydown", (event) => {
-  if (featureOverlay.hidden) return;
-  if (event.key === "Escape") {
-    event.preventDefault();
-    closeFeature();
+  if (!featureOverlay.hidden) {
+    if (event.key === "Escape") { event.preventDefault(); closeFeature(); return; }
+    if (event.key !== "Tab") return;
+    const focusables = featureModal.querySelectorAll('a[href], button:not([disabled]), input:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])');
+    if (!focusables.length) return;
+    const first = focusables[0];
+    const last = focusables[focusables.length - 1];
+    if (event.shiftKey && document.activeElement === first) {
+      event.preventDefault();
+      last.focus();
+    } else if (!event.shiftKey && document.activeElement === last) {
+      event.preventDefault();
+      first.focus();
+    }
     return;
   }
-  if (event.key !== "Tab") return;
-  const focusables = featureModal.querySelectorAll('a[href], button:not([disabled]), input:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])');
-  if (!focusables.length) return;
-  const first = focusables[0];
-  const last = focusables[focusables.length - 1];
-  if (event.shiftKey && document.activeElement === first) {
-    event.preventDefault();
-    last.focus();
-  } else if (!event.shiftKey && document.activeElement === last) {
-    event.preventDefault();
-    first.focus();
+  if (zoomedId && event.key === "Escape") {
+    event.preventDefault(); closeZoom();
   }
 });
 
@@ -1207,8 +1771,10 @@ render();
 </html>`;
 }
 
-function StarFeatureModal({ star, origin, onClose }) {
+function StarFeatureModal({ star, origin, onClose, resolveImageSource = (value) => value || "" }) {
   const workUrl = safeExternalUrl(star.workUrl);
+  const characters = getDisplayCharacters(star);
+  const sceneImageSrc = resolveImageSource(star.sceneImageUrl);
   const modalRef = useRef(null);
   const closeRef = useRef(null);
   const [closing, setClosing] = useState(false);
@@ -1279,34 +1845,18 @@ function StarFeatureModal({ star, origin, onClose }) {
           <X size={20} weight="bold" />
         </button>
 
-        <div className="feature-character">
-          {star.standingImageUrl ? (
-            <img alt={star.characterName || star.name} src={star.standingImageUrl} />
+        <section className="feature-hero">
+          {sceneImageSrc ? (
+            <img alt={star.workTitle || star.name} src={sceneImageSrc} />
           ) : (
-            <div className="feature-empty">立ち絵未設定</div>
+            <div className="feature-empty">作品タイトル画像未設定</div>
           )}
-        </div>
+        </section>
 
-        <div className="feature-copy">
+        <section className="feature-work-details">
           <p className="feature-kicker">{star.creatorName || "Creator"}</p>
-          <h2>{star.characterName || star.name}</h2>
-
-          <div className="feature-work">
-            <div className="feature-scene">
-              {star.sceneImageUrl ? (
-                <img alt={star.workTitle || `${star.name}のシーン`} src={star.sceneImageUrl} />
-              ) : (
-                <div className="feature-empty">シーン画像未設定</div>
-              )}
-            </div>
-            <div className="feature-work-meta">
-              <span>作品</span>
-              <strong>{star.workTitle || "未設定"}</strong>
-              <small>{shortUrl(star.workUrl)}</small>
-            </div>
-          </div>
-
-          <div className="feature-text">{star.pastedText || star.description}</div>
+          <h2>{star.workTitle || "未設定"}</h2>
+          <div className="feature-text feature-work-description">{star.workDescription}</div>
 
           {workUrl ? (
             <a className="feature-link" href={workUrl} target="_blank" rel="noreferrer">
@@ -1315,7 +1865,32 @@ function StarFeatureModal({ star, origin, onClose }) {
           ) : (
             <span className="feature-link is-disabled">作品URL未設定</span>
           )}
-        </div>
+        </section>
+
+        <section className="feature-character-intro">
+          <h3 className="feature-section-title">キャラクター紹介</h3>
+          <div className="feature-character-list">
+            {characters.map((character, index) => {
+              const characterImageSrc = resolveImageSource(character.imageUrl);
+              return (
+                <article className="feature-character-card" key={character.id || `${character.name}-${index}`}>
+                  <div className="feature-character">
+                    {characterImageSrc ? (
+                      <img alt={character.name || "キャラクター"} src={characterImageSrc} />
+                    ) : (
+                      <div className="feature-empty">キャラ画像未設定</div>
+                    )}
+                  </div>
+                  <div className="feature-character-copy">
+                    <span className="feature-character-index">CHARACTER {String(index + 1).padStart(2, "0")}</span>
+                    <strong className="feature-character-name">{character.name || "未設定"}</strong>
+                    <div className="feature-text feature-character-text">{character.description}</div>
+                  </div>
+                </article>
+              );
+            })}
+          </div>
+        </section>
       </section>
     </div>
   );
@@ -1348,6 +1923,10 @@ function App() {
   const [draggingStarId, setDraggingStarId] = useState("");
   const [activePopupStarId, setActivePopupStarId] = useState("");
   const [popupOrigin, setPopupOrigin] = useState(null);
+  const [zoomedStarId, setZoomedStarId] = useState("");
+  const [showStarDetail, setShowStarDetail] = useState(false);
+  const [zoomClosing, setZoomClosing] = useState(false);
+  const [indexedDbImages, setIndexedDbImages] = useState({});
   const audioRef = useRef(null);
   const spaceMapRef = useRef(null);
   const triggerElRef = useRef(null);
@@ -1362,25 +1941,94 @@ function App() {
     [activePopupStarId, stars],
   );
 
+  const zoomedStar = useMemo(
+    () => stars.find((star) => star.id === zoomedStarId),
+    [zoomedStarId, stars],
+  );
+
   const effectiveBgmUrl = selectedStar?.bgmUrl || globalBgmUrl;
+  const hasPendingDataImageMigration = useMemo(
+    () => hasDataImageAssets(stars, backgroundImageUrl),
+    [stars, backgroundImageUrl],
+  );
+  const resolveImageSource = useCallback(
+    (value) => resolveStoredImageSource(value, indexedDbImages),
+    [indexedDbImages],
+  );
+  const displayBackgroundImageUrl = resolveImageSource(backgroundImageUrl) || DEFAULT_BACKGROUND_URL;
 
   useEffect(() => {
+    if (hasPendingDataImageMigration) {
+      setSaveState("画像保存中...");
+      return undefined;
+    }
+
     setSaveState("保存中...");
     const handle = window.setTimeout(() => {
-      localStorage.setItem(
-        STORAGE_KEY,
-        JSON.stringify({
-          stars,
-          globalBgmUrl,
-          backgroundImageUrl,
-          updatedAt: new Date().toISOString(),
-        }),
-      );
-      setSaveState("保存済み");
+      try {
+        localStorage.setItem(
+          STORAGE_KEY,
+          JSON.stringify({
+            stars,
+            globalBgmUrl,
+            backgroundImageUrl,
+            updatedAt: new Date().toISOString(),
+          }),
+        );
+        setSaveState("保存済み");
+      } catch {
+        setSaveState("保存に失敗");
+      }
     }, 260);
 
     return () => window.clearTimeout(handle);
-  }, [stars, globalBgmUrl, backgroundImageUrl]);
+  }, [stars, globalBgmUrl, backgroundImageUrl, hasPendingDataImageMigration]);
+
+  useEffect(() => {
+    if (!hasPendingDataImageMigration) return undefined;
+    let cancelled = false;
+
+    migrateDataImageAssets(stars, backgroundImageUrl)
+      .then((result) => {
+        if (cancelled || !result.changed) return;
+        if (Object.keys(result.imageCache).length > 0) {
+          setIndexedDbImages((current) => ({ ...current, ...result.imageCache }));
+        }
+        setStars(result.stars);
+        setBackgroundImageUrl(result.backgroundImageUrl);
+      })
+      .catch(() => setSaveState("画像保存に失敗"));
+
+    return () => {
+      cancelled = true;
+    };
+  }, [stars, backgroundImageUrl, hasPendingDataImageMigration]);
+
+  useEffect(() => {
+    const missingRefs = collectIndexedDbImageRefs(stars, backgroundImageUrl).filter((ref) => !indexedDbImages[ref]);
+    if (missingRefs.length === 0) return undefined;
+    let cancelled = false;
+
+    Promise.all(
+      missingRefs.map(async (ref) => {
+        try {
+          return [ref, await readIndexedDbImage(ref)];
+        } catch {
+          return [ref, ""];
+        }
+      }),
+    ).then((entries) => {
+      if (cancelled) return;
+      const loadedImages = Object.fromEntries(entries.filter(([, value]) => value));
+      if (Object.keys(loadedImages).length > 0) {
+        setIndexedDbImages((current) => ({ ...current, ...loadedImages }));
+      }
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [stars, backgroundImageUrl, indexedDbImages]);
 
   useEffect(() => {
     if (audioRef.current) {
@@ -1413,6 +2061,38 @@ function App() {
     }
   }, [activePopupStar, activePopupStarId]);
 
+  useEffect(() => {
+    if (zoomedStarId && !zoomedStar) {
+      setZoomedStarId("");
+      setShowStarDetail(false);
+      setZoomClosing(false);
+    }
+  }, [zoomedStar, zoomedStarId]);
+
+  useEffect(() => {
+    if (!zoomedStarId || zoomClosing) return undefined;
+    const handle = setTimeout(() => setShowStarDetail(true), 1000);
+    return () => clearTimeout(handle);
+  }, [zoomedStarId, zoomClosing]);
+
+  useEffect(() => {
+    if (!zoomedStarId || activePopupStarId) return undefined;
+    function onKeyDown(event) {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        setZoomClosing(true);
+        setActivePopupStarId("");
+        setTimeout(() => {
+          setZoomedStarId("");
+          setShowStarDetail(false);
+          setZoomClosing(false);
+        }, 900);
+      }
+    }
+    document.addEventListener("keydown", onKeyDown);
+    return () => document.removeEventListener("keydown", onKeyDown);
+  }, [zoomedStarId, activePopupStarId]);
+
   function updateStar(starId, patch) {
     setStars((current) =>
       current.map((star) =>
@@ -1432,34 +2112,99 @@ function App() {
     updateStar(selectedStar.id, patch);
   }
 
+  function commitSelectedCharacters(nextCharacters) {
+    if (!selectedStar) return;
+    const characters = nextCharacters.length
+      ? nextCharacters.slice(0, MAX_CHARACTERS_PER_STAR)
+      : [
+          {
+            ...makeCharacterDefaults(selectedStar.name, 0, selectedStar.description),
+            id: `character-${Date.now()}-0`,
+          },
+        ];
+    updateSelected({
+      characters,
+      ...getPrimaryCharacterFields(characters, selectedStar.name, selectedStar.description),
+    });
+  }
+
+  function updateSelectedCharacter(characterId, patch) {
+    if (!selectedStar) return;
+    commitSelectedCharacters(
+      getDisplayCharacters(selectedStar).map((character) =>
+        character.id === characterId ? { ...character, ...patch } : character,
+      ),
+    );
+  }
+
+  function addSelectedCharacter() {
+    if (!selectedStar) return;
+    const currentCharacters = getDisplayCharacters(selectedStar);
+    if (currentCharacters.length >= MAX_CHARACTERS_PER_STAR) return;
+    const index = currentCharacters.length;
+    const character = {
+      ...makeCharacterDefaults(`キャラクター ${index + 1}`, index),
+      id: `character-${Date.now()}-${index}`,
+    };
+    commitSelectedCharacters([...currentCharacters, character]);
+  }
+
+  function deleteSelectedCharacter(characterId) {
+    if (!selectedStar) return;
+    const currentCharacters = getDisplayCharacters(selectedStar);
+    if (currentCharacters.length <= 1) return;
+    commitSelectedCharacters(currentCharacters.filter((character) => character.id !== characterId));
+  }
+
   async function uploadBackgroundFile(file) {
-    const dataUrl = await readFileAsDataUrl(file);
-    if (dataUrl) {
-      setBackgroundImageUrl(dataUrl);
+    if (!file) return;
+    try {
+      const { ref, dataUrl } = await storeFileAsIndexedDbImage(file);
+      if (ref) {
+        setIndexedDbImages((current) => ({ ...current, [ref]: dataUrl }));
+        setBackgroundImageUrl(ref);
+      }
+    } catch {
+      setSaveState("画像保存に失敗");
     }
   }
 
   async function uploadSelectedStarImage(file) {
-    if (!selectedStar) return;
-    const dataUrl = await readFileAsDataUrl(file);
-    if (dataUrl) {
-      updateSelected({ imageUrl: dataUrl });
+    if (!selectedStar || !file) return;
+    try {
+      const { ref, dataUrl } = await storeFileAsIndexedDbImage(file);
+      if (ref) {
+        setIndexedDbImages((current) => ({ ...current, [ref]: dataUrl }));
+        updateSelected({ imageUrl: ref });
+      }
+    } catch {
+      setSaveState("画像保存に失敗");
     }
   }
 
-  async function uploadSelectedStandingImage(file) {
-    if (!selectedStar) return;
-    const dataUrl = await readFileAsDataUrl(file);
-    if (dataUrl) {
-      updateSelected({ standingImageUrl: dataUrl });
+  async function uploadSelectedCharacterImage(characterId, file) {
+    if (!selectedStar || !file) return;
+    try {
+      const { ref, dataUrl } = await storeFileAsIndexedDbImage(file);
+      if (ref) {
+        setIndexedDbImages((current) => ({ ...current, [ref]: dataUrl }));
+        updateSelectedCharacter(characterId, { imageUrl: ref });
+      }
+    } catch {
+      setSaveState("画像保存に失敗");
     }
   }
 
   async function uploadSelectedSceneImage(file) {
-    if (!selectedStar) return;
-    const dataUrl = await readFileAsDataUrl(file);
-    if (dataUrl) {
-      updateSelected({ sceneImageUrl: dataUrl });
+    if (!selectedStar || !file) return;
+    try {
+      const { ref, dataUrl } = await storeFileAsIndexedDbImage(file);
+      if (ref) {
+        setIndexedDbImages((current) => ({ ...current, [ref]: dataUrl }));
+        updateSelected({ sceneImageUrl: ref });
+      }
+    } catch {
+      setSaveState("画像保存に失敗");
     }
   }
 
@@ -1467,7 +2212,26 @@ function App() {
     setIsPreviewMode(nextValue);
     if (!nextValue) {
       setActivePopupStarId("");
+      setZoomedStarId("");
+      setShowStarDetail(false);
+      setZoomClosing(false);
     }
+  }
+
+  const closeZoomView = useCallback(() => {
+    setZoomClosing(true);
+    setActivePopupStarId("");
+    setTimeout(() => {
+      setZoomedStarId("");
+      setShowStarDetail(false);
+      setZoomClosing(false);
+    }, 900);
+  }, []);
+
+  function openWorkFromZoom() {
+    if (!zoomedStar) return;
+    const node = spaceMapRef.current?.querySelector(`[data-star-id="${zoomedStarId}"]`);
+    openPopup(zoomedStarId, node);
   }
 
   function originFromElement(element) {
@@ -1499,7 +2263,10 @@ function App() {
   function handleStarActivate(starId, event) {
     setSelectedId(starId);
     if (isPreviewMode) {
-      openPopup(starId, event?.currentTarget);
+      if (zoomedStarId) return;
+      setZoomedStarId(starId);
+      setShowStarDetail(false);
+      setZoomClosing(false);
     }
   }
 
@@ -1610,19 +2377,33 @@ function App() {
       const embeddedBackground = await embedAsset(backgroundImageUrl || DEFAULT_BACKGROUND_URL);
       const embeddedStars = await Promise.all(
         stars.map(async (star) => {
-          const [embeddedImage, embeddedStandingImage, embeddedSceneImage] = await Promise.all([
+          const sourceCharacters = getDisplayCharacters(star);
+          const [embeddedImage, embeddedSceneImage, embeddedCharacters] = await Promise.all([
             embedAsset(star.imageUrl),
-            embedAsset(star.standingImageUrl),
             embedAsset(star.sceneImageUrl),
+            Promise.all(
+              sourceCharacters.map(async (character) => {
+                const embeddedCharacterImage = await embedAsset(character.imageUrl);
+                return {
+                  ...character,
+                  imageUrl: embeddedCharacterImage.value,
+                  imageEmbedded: embeddedCharacterImage.embedded || !character.imageUrl,
+                };
+              }),
+            ),
           ]);
           return {
             ...star,
+            ...getPrimaryCharacterFields(embeddedCharacters, star.name, star.description),
+            characters: embeddedCharacters,
             imageUrl: embeddedImage.value,
-            standingImageUrl: embeddedStandingImage.value,
             sceneImageUrl: embeddedSceneImage.value,
             imageEmbedded: embeddedImage.embedded,
-            standingImageEmbedded: embeddedStandingImage.embedded || !star.standingImageUrl,
             sceneImageEmbedded: embeddedSceneImage.embedded || !star.sceneImageUrl,
+            missedCharacterAssets: embeddedCharacters.reduce(
+              (total, character) => total + (character.imageEmbedded ? 0 : 1),
+              0,
+            ),
           };
         }),
       );
@@ -1632,8 +2413,8 @@ function App() {
           (total, star) =>
             total +
             (star.imageEmbedded ? 0 : 1) +
-            (star.standingImageEmbedded ? 0 : 1) +
-            (star.sceneImageEmbedded ? 0 : 1),
+            (star.sceneImageEmbedded ? 0 : 1) +
+            (star.missedCharacterAssets || 0),
           0,
         );
       const html = buildPublicHtml({
@@ -1668,10 +2449,12 @@ function App() {
     return null;
   }
 
+  const selectedCharacters = getDisplayCharacters(selectedStar);
+
   return (
     <div
-      className={`app-shell ${isPreviewMode ? "is-preview-mode" : ""}`}
-      style={{ "--space-image": `url(${backgroundImageUrl || DEFAULT_BACKGROUND_URL})` }}
+      className={`app-shell ${isPreviewMode ? "is-preview-mode" : ""} ${zoomedStarId && !zoomClosing ? "is-star-zoomed" : ""}`}
+      style={{ "--space-image": `url(${displayBackgroundImageUrl})` }}
     >
       <audio ref={audioRef} loop />
       <span className="shooting-star" aria-hidden="true" />
@@ -1775,7 +2558,7 @@ function App() {
             <label>
               背景画像URL
               <input
-                value={backgroundImageUrl}
+                value={editableImageValue(backgroundImageUrl)}
                 onChange={(event) => setBackgroundImageUrl(event.target.value)}
                 placeholder="GitHub raw URL または画像URL"
               />
@@ -1805,7 +2588,7 @@ function App() {
                 onClick={() => setSelectedId(star.id)}
               >
                 <span>{String(index + 1).padStart(2, "0")}</span>
-                <img alt="" src={star.imageUrl} />
+                <img alt="" src={resolveImageSource(star.imageUrl)} />
                 <strong>{star.name}</strong>
                 {star.bgmUrl ? <MusicNotes size={15} weight="fill" /> : null}
               </button>
@@ -1814,9 +2597,10 @@ function App() {
         </aside>
 
         <section
-          className={`space-map ${activePopupStarId ? "is-feature-open" : ""}`}
+          className={`space-map ${activePopupStarId ? "is-feature-open" : ""} ${zoomedStarId && !zoomClosing ? "is-zoomed" : ""}`}
           ref={spaceMapRef}
           aria-label="クリックできる星図"
+          style={zoomedStar ? { "--zoom-x": zoomedStar.x, "--zoom-y": zoomedStar.y } : undefined}
         >
           <div className="map-grid" aria-hidden="true" />
           <span className="orbit orbit-one" aria-hidden="true" />
@@ -1841,7 +2625,7 @@ function App() {
             <button
               className={`star-node ${star.id === selectedStar.id ? "is-selected" : ""} ${
                 draggingStarId === star.id ? "is-dragging" : ""
-              } ${activePopupStarId === star.id ? "is-popup-active" : ""}`}
+              } ${activePopupStarId === star.id ? "is-popup-active" : ""} ${zoomedStarId === star.id ? "is-zoom-target" : ""}`}
               key={star.id}
               type="button"
               data-star-id={star.id}
@@ -1860,8 +2644,8 @@ function App() {
               aria-label={`${star.name}の詳細を表示`}
               title={isPreviewMode ? "作品ポップアップを表示" : "ドラッグで配置"}
             >
-              <img alt="" src={star.imageUrl} />
-              <span>{String(index + 1).padStart(2, "0")}</span>
+              <img alt="" src={resolveImageSource(star.imageUrl)} />
+              <span className="editor-only">{String(index + 1).padStart(2, "0")}</span>
             </button>
           ))}
 
@@ -1885,7 +2669,7 @@ function App() {
           </div>
 
           <div className="star-preview" style={{ "--preview-color": selectedStar.color }}>
-            <img alt={selectedStar.name} src={selectedStar.imageUrl} />
+            <img alt={selectedStar.name} src={resolveImageSource(selectedStar.imageUrl)} />
           </div>
 
           <p className="description">{selectedStar.description}</p>
@@ -1895,27 +2679,35 @@ function App() {
               <span>制作者</span>
               <strong>{selectedStar.creatorName || "未設定"}</strong>
             </div>
-            <div>
+            <div className="editor-only">
               <span>色</span>
               <strong>
                 <i style={{ backgroundColor: selectedStar.color }} />
                 {selectedStar.color}
               </strong>
             </div>
-            <div>
+            <div className="editor-only">
               <span>サイズ</span>
               <strong>{Number(selectedStar.size).toFixed(2)} R</strong>
             </div>
-            <div>
+            <div className="editor-only">
               <span>位置</span>
               <strong>
                 X {selectedStar.x} / Y {selectedStar.y} / Z {selectedStar.z}
               </strong>
             </div>
-            <div>
+            <div className="editor-only">
               <span>更新日</span>
               <strong>{formatDate(selectedStar.updatedAt)}</strong>
             </div>
+            {PLANET_FIELDS.map(({ key, label }) =>
+              selectedStar[key] ? (
+                <div key={key}>
+                  <span>{label}</span>
+                  <strong>{selectedStar[key]}</strong>
+                </div>
+              ) : null,
+            )}
             <div>
               <span>BGM</span>
               <strong>{shortUrl(selectedStar.bgmUrl || globalBgmUrl)}</strong>
@@ -1923,23 +2715,99 @@ function App() {
           </div>
 
           <section className="editor-form editor-only" aria-label="星の編集">
-            <div className="form-title">
-              <PencilSimple size={17} />
-              <span>編集</span>
+            <div className="form-section">
+              <div className="form-title">
+                <PencilSimple size={17} />
+                <span>星の基本情報</span>
+              </div>
+              <label>
+                名前
+                <input value={selectedStar.name} onChange={(event) => updateSelected({ name: event.target.value })} />
+              </label>
+              <label>
+                説明
+                <textarea
+                  value={selectedStar.description}
+                  onChange={(event) => updateSelected({ description: event.target.value })}
+                  rows={4}
+                />
+              </label>
+              <label>
+                星画像URL
+                <input
+                  value={editableImageValue(selectedStar.imageUrl)}
+                  onChange={(event) => updateSelected({ imageUrl: event.target.value })}
+                  placeholder="GitHubのraw画像URL"
+                />
+              </label>
+              <div className="file-row">
+                <label className="file-button">
+                  <UploadSimple size={16} />
+                  星画像を選択
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={(event) => uploadSelectedStarImage(event.target.files?.[0])}
+                  />
+                </label>
+                <span className="hint-text">公開HTMLでは画像を埋め込みます</span>
+              </div>
+              <label>
+                この星のBGM URL
+                <input
+                  value={selectedStar.bgmUrl}
+                  onChange={(event) => updateSelected({ bgmUrl: event.target.value })}
+                  placeholder="未設定なら全体BGMを使用"
+                />
+              </label>
+              <div className="form-grid">
+                <label>
+                  色
+                  <input
+                    type="color"
+                    value={selectedStar.color}
+                    onChange={(event) => updateSelected({ color: event.target.value })}
+                  />
+                </label>
+                <label>
+                  サイズ
+                  <input
+                    type="range"
+                    min="0.55"
+                    max="1.8"
+                    step="0.01"
+                    value={selectedStar.size}
+                    onChange={(event) => updateSelected({ size: Number(event.target.value) })}
+                  />
+                </label>
+                <label>
+                  X
+                  <input
+                    type="number"
+                    min="3"
+                    max="97"
+                    value={selectedStar.x}
+                    onChange={(event) => updateSelected({ x: clamp(event.target.value, 3, 97) })}
+                  />
+                </label>
+                <label>
+                  Y
+                  <input
+                    type="number"
+                    min="5"
+                    max="95"
+                    value={selectedStar.y}
+                    onChange={(event) => updateSelected({ y: clamp(event.target.value, 5, 95) })}
+                  />
+                </label>
+              </div>
             </div>
-            <label>
-              名前
-              <input value={selectedStar.name} onChange={(event) => updateSelected({ name: event.target.value })} />
-            </label>
-            <label>
-              説明
-              <textarea
-                value={selectedStar.description}
-                onChange={(event) => updateSelected({ description: event.target.value })}
-                rows={4}
-              />
-            </label>
-            <div className="form-grid">
+
+            <div className="form-section">
+              <div className="form-title">
+                <ImageSquare size={17} />
+                <span>作品情報</span>
+              </div>
               <label>
                 クリエイター名
                 <input
@@ -1949,149 +2817,144 @@ function App() {
                 />
               </label>
               <label>
-                キャラ名
+                作品タイトル画像URL
                 <input
-                  value={selectedStar.characterName}
-                  onChange={(event) => updateSelected({ characterName: event.target.value })}
-                  placeholder="ポップアップ見出し"
+                  value={editableImageValue(selectedStar.sceneImageUrl)}
+                  onChange={(event) => updateSelected({ sceneImageUrl: event.target.value })}
+                  placeholder="作品タイトル画像・キービジュアルURL"
+                />
+              </label>
+              <div className="file-row">
+                <label className="file-button">
+                  <UploadSimple size={16} />
+                  作品画像を選択
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={(event) => uploadSelectedSceneImage(event.target.files?.[0])}
+                  />
+                </label>
+                <span className="hint-text">作品詳細ポップアップ上部</span>
+              </div>
+              <div className="form-grid">
+                <label>
+                  作品タイトル
+                  <input
+                    value={selectedStar.workTitle}
+                    onChange={(event) => updateSelected({ workTitle: event.target.value })}
+                    placeholder="リンク先作品名"
+                  />
+                </label>
+                <label>
+                  作品URL
+                  <input
+                    value={selectedStar.workUrl}
+                    onChange={(event) => updateSelected({ workUrl: event.target.value })}
+                    placeholder="https://..."
+                  />
+                </label>
+              </div>
+              <label>
+                作品詳細
+                <textarea
+                  value={selectedStar.workDescription}
+                  onChange={(event) => updateSelected({ workDescription: event.target.value })}
+                  rows={4}
+                  placeholder="作品の紹介文・あらすじなど"
                 />
               </label>
             </div>
-            <label>
-              立ち絵画像URL
-              <input
-                value={selectedStar.standingImageUrl}
-                onChange={(event) => updateSelected({ standingImageUrl: event.target.value })}
-                placeholder="キャラ立ち絵のGitHub raw URL"
-              />
-            </label>
-            <div className="file-row">
-              <label className="file-button">
-                <UploadSimple size={16} />
-                立ち絵を選択
-                <input
-                  type="file"
-                  accept="image/*"
-                  onChange={(event) => uploadSelectedStandingImage(event.target.files?.[0])}
-                />
-              </label>
-              <span className="hint-text">中央ポップアップ左側</span>
+
+            <div className="form-section character-section">
+              <div className="form-title form-title-row">
+                <span className="form-title-label">
+                  <PencilSimple size={17} />
+                  <span>キャラクター</span>
+                </span>
+                <button
+                  className="mini-action"
+                  type="button"
+                  onClick={addSelectedCharacter}
+                  disabled={selectedCharacters.length >= MAX_CHARACTERS_PER_STAR}
+                >
+                  <Plus size={16} weight="bold" />
+                  追加
+                </button>
+              </div>
+              <div className="character-editor-list">
+                {selectedCharacters.map((character, index) => (
+                  <article className="character-editor-card" key={character.id}>
+                    <div className="character-editor-head">
+                      <strong>CHARACTER {String(index + 1).padStart(2, "0")}</strong>
+                      <button
+                        className="character-remove"
+                        type="button"
+                        onClick={() => deleteSelectedCharacter(character.id)}
+                        disabled={selectedCharacters.length <= 1}
+                        aria-label={`${character.name || "キャラクター"}を削除`}
+                      >
+                        <Trash size={16} />
+                      </button>
+                    </div>
+                    <label>
+                      キャラ名
+                      <input
+                        value={character.name}
+                        onChange={(event) => updateSelectedCharacter(character.id, { name: event.target.value })}
+                        placeholder="キャラクター名"
+                      />
+                    </label>
+                    <label>
+                      キャラ画像URL
+                      <input
+                        value={editableImageValue(character.imageUrl)}
+                        onChange={(event) => updateSelectedCharacter(character.id, { imageUrl: event.target.value })}
+                        placeholder="キャラ画像のGitHub raw URL"
+                      />
+                    </label>
+                    <div className="file-row">
+                      <label className="file-button">
+                        <UploadSimple size={16} />
+                        キャラ画像を選択
+                        <input
+                          type="file"
+                          accept="image/*"
+                          onChange={(event) => uploadSelectedCharacterImage(character.id, event.target.files?.[0])}
+                        />
+                      </label>
+                      <span className="hint-text">このキャラだけに反映</span>
+                    </div>
+                    <label>
+                      キャラ詳細文
+                      <textarea
+                        value={character.description}
+                        onChange={(event) => updateSelectedCharacter(character.id, { description: event.target.value })}
+                        rows={5}
+                        placeholder="キャラクター紹介文やキャプションを貼り付け"
+                      />
+                    </label>
+                  </article>
+                ))}
+              </div>
             </div>
-            <label>
-              シーン画像URL
-              <input
-                value={selectedStar.sceneImageUrl}
-                onChange={(event) => updateSelected({ sceneImageUrl: event.target.value })}
-                placeholder="縮小表示するシーン画像URL"
-              />
-            </label>
-            <div className="file-row">
-              <label className="file-button">
-                <UploadSimple size={16} />
-                シーンを選択
-                <input
-                  type="file"
-                  accept="image/*"
-                  onChange={(event) => uploadSelectedSceneImage(event.target.files?.[0])}
-                />
-              </label>
-              <span className="hint-text">右側の縮小画像</span>
-            </div>
-            <div className="form-grid">
-              <label>
-                作品タイトル
-                <input
-                  value={selectedStar.workTitle}
-                  onChange={(event) => updateSelected({ workTitle: event.target.value })}
-                  placeholder="リンク先作品名"
-                />
-              </label>
-              <label>
-                作品URL
-                <input
-                  value={selectedStar.workUrl}
-                  onChange={(event) => updateSelected({ workUrl: event.target.value })}
-                  placeholder="https://..."
-                />
-              </label>
-            </div>
-            <label>
-              貼り付けテキスト
-              <textarea
-                value={selectedStar.pastedText}
-                onChange={(event) => updateSelected({ pastedText: event.target.value })}
-                rows={6}
-                placeholder="作品紹介文やキャプションを貼り付け"
-              />
-            </label>
-            <label>
-              星画像URL
-              <input
-                value={selectedStar.imageUrl}
-                onChange={(event) => updateSelected({ imageUrl: event.target.value })}
-                placeholder="GitHubのraw画像URL"
-              />
-            </label>
-            <div className="file-row">
-              <label className="file-button">
-                <UploadSimple size={16} />
-                星画像を選択
-                <input
-                  type="file"
-                  accept="image/*"
-                  onChange={(event) => uploadSelectedStarImage(event.target.files?.[0])}
-                />
-              </label>
-              <span className="hint-text">公開HTMLでは画像を埋め込みます</span>
-            </div>
-            <label>
-              この星のBGM URL
-              <input
-                value={selectedStar.bgmUrl}
-                onChange={(event) => updateSelected({ bgmUrl: event.target.value })}
-                placeholder="未設定なら全体BGMを使用"
-              />
-            </label>
-            <div className="form-grid">
-              <label>
-                色
-                <input
-                  type="color"
-                  value={selectedStar.color}
-                  onChange={(event) => updateSelected({ color: event.target.value })}
-                />
-              </label>
-              <label>
-                サイズ
-                <input
-                  type="range"
-                  min="0.55"
-                  max="1.8"
-                  step="0.01"
-                  value={selectedStar.size}
-                  onChange={(event) => updateSelected({ size: Number(event.target.value) })}
-                />
-              </label>
-              <label>
-                X
-                <input
-                  type="number"
-                  min="3"
-                  max="97"
-                  value={selectedStar.x}
-                  onChange={(event) => updateSelected({ x: clamp(event.target.value, 3, 97) })}
-                />
-              </label>
-              <label>
-                Y
-                <input
-                  type="number"
-                  min="5"
-                  max="95"
-                  value={selectedStar.y}
-                  onChange={(event) => updateSelected({ y: clamp(event.target.value, 5, 95) })}
-                />
-              </label>
+
+            <div className="form-section">
+              <div className="form-title">
+                <Planet size={17} />
+                <span>惑星データ</span>
+              </div>
+              <div className="form-grid">
+                {PLANET_FIELDS.map(({ key, label }) => (
+                  <label key={key}>
+                    {label}
+                    <input
+                      value={selectedStar[key]}
+                      onChange={(event) => updateSelected({ [key]: event.target.value })}
+                      placeholder={label}
+                    />
+                  </label>
+                ))}
+              </div>
             </div>
           </section>
 
@@ -2109,8 +2972,40 @@ function App() {
           </div>
         </aside>
       </main>
+      {zoomedStar ? (
+        <div className={`star-zoom-overlay ${zoomClosing ? "is-closing" : ""}`}>
+          <div className="star-zoom-backdrop" onClick={closeZoomView} />
+          {showStarDetail && (
+            <div className="star-detail-sheet">
+              <button className="star-detail-close" type="button" onClick={closeZoomView} aria-label="閉じる">
+                <X size={20} weight="bold" />
+              </button>
+              <div className="star-detail-header">
+                <span>STAR {String(stars.indexOf(zoomedStar) + 1).padStart(2, "0")}</span>
+                <h2>{zoomedStar.name}</h2>
+              </div>
+              <p className="star-detail-desc">{zoomedStar.description}</p>
+              <div className="star-detail-meta">
+                {PLANET_FIELDS.filter(({ key }) => zoomedStar[key]).map(({ key, label }) => (
+                  <div key={key}>
+                    <span>{label}</span>
+                    <strong>{zoomedStar[key]}</strong>
+                  </div>
+                ))}
+                <div>
+                  <span>BGM</span>
+                  <strong>{shortUrl(zoomedStar.bgmUrl || globalBgmUrl)}</strong>
+                </div>
+              </div>
+              <button className="star-detail-work-btn" type="button" onClick={openWorkFromZoom}>
+                作品詳細を見る
+              </button>
+            </div>
+          )}
+        </div>
+      ) : null}
       {activePopupStar ? (
-        <StarFeatureModal star={activePopupStar} origin={popupOrigin} onClose={closePopup} />
+        <StarFeatureModal star={activePopupStar} origin={popupOrigin} onClose={closePopup} resolveImageSource={resolveImageSource} />
       ) : null}
     </div>
   );
