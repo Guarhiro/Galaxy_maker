@@ -120,6 +120,17 @@ npm run dev
 > 💡 画像やBGMは「URL指定」が基本です。GitHub等にアップした画像の **raw URL**
 > （`https://raw.githubusercontent.com/...`）を貼り付けると確実です。
 
+### 現在の公開BGM
+
+GitHub Pages（`docs/` 公開）では、次の音源をリポジトリ内に配置しています。
+
+| 用途 | ファイル |
+| --- | --- |
+| 一覧画面BGM | `docs/assets/audio/gallery.mp3` |
+| エテルニア・ステラリアBGM | `docs/assets/audio/ginga-wa-warawa-no-teatime.mp3` |
+
+編集画面では `public/assets/audio/` 側の同名ファイルを参照します。作品詳細を開くと作品BGMへ切り替わり、閉じると一覧BGMの止まった秒数から再開します。
+
 ---
 
 ## 📦 公開HTMLを書き出す（公開のしかた）

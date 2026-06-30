@@ -25,9 +25,12 @@ const IMAGE_STORE_NAME = "images";
 const IMAGE_REF_PREFIX = "indexeddb-image:";
 const MAX_STARS = 20;
 const DEFAULT_BACKGROUND_URL = backgroundUrl;
+const DEFAULT_GLOBAL_BGM_URL = "assets/audio/gallery.mp3";
+const ETERNIA_TITLE = "エテルニア・ステラリア";
+const ETERNIA_BGM_URL = "assets/audio/ginga-wa-warawa-no-teatime.mp3";
 
 const STAR_NAMES = [
-  "アルデラ",
+  ETERNIA_TITLE,
   "ティアマト",
   "ルミナス",
   "カルデア",
@@ -212,9 +215,9 @@ function makeFeatureDefaults(name, index, description = "") {
     characters: [makeCharacterDefaults(name, 0, pastedText)],
     workDescription:
       index === 0
-        ? "黄金色の星図に導かれた観測者たちが、失われた航路の記録を辿っていく幻想冒険譚です。"
+        ? "銀河の奥でひらかれる、気高く甘いティータイム。星を選ぶと専用BGMに切り替わります。"
         : `${name}の作品紹介文をここに入力します。`,
-    workTitle: index === 0 ? "黄金航路の記録" : `${name}の作品`,
+    workTitle: index === 0 ? ETERNIA_TITLE : `${name}の作品`,
     workUrl: "",
     ...Object.fromEntries(PLANET_FIELDS.map(({ key }) => [key, ""])),
   };
@@ -326,7 +329,7 @@ function makeDefaultStars() {
       y,
       z: Number((1 + index * 0.17).toFixed(2)),
       imageUrl: makeStarImage(color, index),
-      bgmUrl: "",
+      bgmUrl: index === 0 ? ETERNIA_BGM_URL : "",
       ...makeFeatureDefaults(name, index, description),
       updatedAt: new Date(Date.now() - index * 900000).toISOString(),
     };
@@ -1467,6 +1470,10 @@ const featureOverlay = document.getElementById("featureOverlay");
 const featureModal = document.getElementById("featureModal");
 const featureBody = document.getElementById("featureBody");
 const featureClose = document.getElementById("featureClose");
+let audioEnabled = false;
+let galleryResumeTime = 0;
+let currentAudioUrl = "";
+let currentAudioIsGallery = true;
 
 function shortPublicUrl(value) {
   if (!value) return "未設定";
@@ -1508,6 +1515,10 @@ function formatMultiline(value) {
 
 function pickStar() {
   return stars.find((star) => star.id === selectedId) || stars[0];
+}
+
+function pickFeatureStar() {
+  return stars.find((star) => star.id === featureId);
 }
 
 function setSelected(id) {
@@ -1685,7 +1696,10 @@ function closeZoom() {
 
 function render() {
   const selected = pickStar();
-  const currentBgm = selected.bgmUrl || globalBgmUrl;
+  const featureStar = pickFeatureStar();
+  const featureBgmUrl = featureStar && featureStar.bgmUrl ? featureStar.bgmUrl : "";
+  const currentBgm = featureBgmUrl || globalBgmUrl;
+  const currentBgmIsGallery = !featureBgmUrl;
   map.querySelectorAll(".star-button").forEach((node) => node.remove());
   stars.forEach((star, index) => {
     const button = document.createElement("button");
@@ -1717,13 +1731,54 @@ function render() {
       <div class="meta-row"><span>BGM</span><strong>\${escapeHtml(shortPublicUrl(currentBgm))}</strong></div>
     </div>\`;
   document.getElementById("audioLabel").textContent = shortPublicUrl(currentBgm);
+  if (
+    currentAudioUrl &&
+    currentAudioIsGallery &&
+    currentAudioUrl === globalBgmUrl &&
+    !currentBgmIsGallery &&
+    Number.isFinite(audio.currentTime)
+  ) {
+    galleryResumeTime = audio.currentTime;
+  }
+
   if (currentBgm && audio.dataset.current !== currentBgm) {
+    const seekTime = currentBgmIsGallery ? galleryResumeTime : 0;
     audio.dataset.current = currentBgm;
     audio.src = currentBgm;
+    audio.load();
+    currentAudioUrl = currentBgm;
+    currentAudioIsGallery = currentBgmIsGallery;
+
+    const seekAudio = function() {
+      const duration = audio.duration;
+      const targetTime = Number.isFinite(duration)
+        ? Math.min(seekTime, Math.max(duration - 0.05, 0))
+        : seekTime;
+      try {
+        audio.currentTime = Math.max(targetTime, 0);
+      } catch {}
+    };
+
+    if (audio.readyState >= 1) {
+      seekAudio();
+    } else {
+      audio.addEventListener("loadedmetadata", seekAudio, { once: true });
+    }
+
+    if (audioEnabled) {
+      audio.play().catch(function() {
+        audioEnabled = false;
+        audioToggle.textContent = "BGM再生";
+      });
+    }
   }
   if (!currentBgm) {
     audio.removeAttribute("src");
     audio.dataset.current = "";
+    currentAudioUrl = "";
+    currentAudioIsGallery = true;
+    audioEnabled = false;
+    audioToggle.textContent = "BGM再生";
   }
 }
 
@@ -1731,9 +1786,11 @@ audioToggle.addEventListener("click", async () => {
   if (!audio.src) return;
   if (audio.paused) {
     await audio.play();
+    audioEnabled = true;
     audioToggle.textContent = "BGM停止";
   } else {
     audio.pause();
+    audioEnabled = false;
     audioToggle.textContent = "BGM再生";
   }
 });
@@ -1908,7 +1965,7 @@ function App() {
   const [selectedId, setSelectedId] = useState(() => stars[0]?.id || "");
   const [globalBgmUrl, setGlobalBgmUrl] = useState(() => {
     const stored = readStoredConfig();
-    return stored.globalBgmUrl || "";
+    return stored.globalBgmUrl || DEFAULT_GLOBAL_BGM_URL;
   });
   const [backgroundImageUrl, setBackgroundImageUrl] = useState(() => {
     const stored = readStoredConfig();
@@ -1930,6 +1987,9 @@ function App() {
   const audioRef = useRef(null);
   const spaceMapRef = useRef(null);
   const triggerElRef = useRef(null);
+  const galleryResumeTimeRef = useRef(0);
+  const currentAudioUrlRef = useRef("");
+  const currentAudioIsGalleryRef = useRef(true);
 
   const selectedStar = useMemo(
     () => stars.find((star) => star.id === selectedId) || stars[0],
@@ -1946,7 +2006,9 @@ function App() {
     [zoomedStarId, stars],
   );
 
-  const effectiveBgmUrl = selectedStar?.bgmUrl || globalBgmUrl;
+  const activePopupBgmUrl = activePopupStar?.bgmUrl || "";
+  const effectiveBgmUrl = activePopupBgmUrl || globalBgmUrl;
+  const effectiveBgmIsGallery = !activePopupBgmUrl;
   const hasPendingDataImageMigration = useMemo(
     () => hasDataImageAssets(stars, backgroundImageUrl),
     [stars, backgroundImageUrl],
@@ -2043,17 +2105,55 @@ function App() {
     if (!effectiveBgmUrl) {
       audio.pause();
       setIsAudioEnabled(false);
+      currentAudioUrlRef.current = "";
+      currentAudioIsGalleryRef.current = true;
       return;
     }
 
-    if (audio.src !== effectiveBgmUrl) {
+    const previousUrl = currentAudioUrlRef.current;
+    const previousWasGallery = currentAudioIsGalleryRef.current;
+    const isChangingTrack = previousUrl !== effectiveBgmUrl;
+
+    if (
+      isChangingTrack &&
+      previousWasGallery &&
+      previousUrl === globalBgmUrl &&
+      !effectiveBgmIsGallery &&
+      Number.isFinite(audio.currentTime)
+    ) {
+      galleryResumeTimeRef.current = audio.currentTime;
+    }
+
+    if (isChangingTrack) {
       audio.src = effectiveBgmUrl;
+      audio.load();
+      currentAudioUrlRef.current = effectiveBgmUrl;
+      currentAudioIsGalleryRef.current = effectiveBgmIsGallery;
+
+      const seekTime = effectiveBgmIsGallery ? galleryResumeTimeRef.current : 0;
+      const seekAudio = () => {
+        const duration = audio.duration;
+        const targetTime = Number.isFinite(duration)
+          ? Math.min(seekTime, Math.max(duration - 0.05, 0))
+          : seekTime;
+        try {
+          audio.currentTime = Math.max(targetTime, 0);
+        } catch {
+          // Metadata can be unavailable until the browser finishes loading the file.
+        }
+      };
+
+      if (audio.readyState >= 1) {
+        seekAudio();
+      } else {
+        audio.addEventListener("loadedmetadata", seekAudio, { once: true });
+      }
     }
 
     if (isAudioEnabled) {
       audio.play().catch(() => setIsAudioEnabled(false));
     }
-  }, [effectiveBgmUrl, isAudioEnabled]);
+  }, [effectiveBgmUrl, effectiveBgmIsGallery, globalBgmUrl, isAudioEnabled]);
 
   useEffect(() => {
     if (activePopupStarId && !activePopupStar) {
