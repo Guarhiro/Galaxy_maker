@@ -7,3 +7,5 @@ Before making substantial visual changes, use the Product Design plugin's `get-c
 When implementing from a selected generated mock, treat that image as the source of truth for layout, component anatomy, density, spacing, color, typography, visible content, and hierarchy.
 
 Design decision: On smartphone-width screens, pages should not expose horizontal scrolling or blank space to the right; mobile browsing should be vertical-scroll only.
+
+Performance decision: Public gallery exports should keep large images as external `assets/images/` files and use optimized/resized image assets instead of embedding large `data:image` payloads in `index.html`.

@@ -26,6 +26,14 @@ const IMAGE_REF_PREFIX = "indexeddb-image:";
 const MAX_STARS = 20;
 const DEFAULT_BACKGROUND_URL = backgroundUrl;
 const DEFAULT_GLOBAL_BGM_URL = "assets/audio/gallery.mp3";
+const PUBLIC_IMAGE_ASSET_DIR = "assets/images";
+const PUBLIC_EXPORT_FILENAME = "a-plan-star-gallery-public.zip";
+const PUBLIC_IMAGE_TARGETS = {
+  background: { maxSize: 1600, quality: 0.82 },
+  star: { maxSize: 520, quality: 0.82 },
+  scene: { maxSize: 960, quality: 0.82 },
+  character: { maxSize: 768, quality: 0.82 },
+};
 const ETERNIA_TITLE = "エテルニア・ステラリア";
 const ETERNIA_BGM_URL = "assets/audio/ginga-wa-warawa-no-teatime.mp3";
 
@@ -608,26 +616,326 @@ function readStoredConfig() {
   }
 }
 
-async function embedAsset(source) {
-  if (!source || source.startsWith("data:")) {
-    return { value: source || "", embedded: Boolean(source) };
-  }
+function sanitizeAssetName(value, fallback = "image") {
+  const normalized = String(value || "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+  return normalized || fallback;
+}
 
-  if (isIndexedDbImageRef(source)) {
-    try {
-      const value = await readIndexedDbImage(source);
-      return { value, embedded: Boolean(value) };
-    } catch {
-      return { value: "", embedded: false };
+function extensionFromMime(mimeType) {
+  if (mimeType === "image/webp") return "webp";
+  if (mimeType === "image/jpeg") return "jpg";
+  if (mimeType === "image/png") return "png";
+  return "png";
+}
+
+function mimeFromDataUrl(dataUrl) {
+  const match = String(dataUrl || "").match(/^data:([^;,]+)[;,]/);
+  return match?.[1] || "";
+}
+
+async function sourceToDataUrl(source) {
+  if (!source) return "";
+  if (source.startsWith("data:")) return source;
+  if (isIndexedDbImageRef(source)) return readIndexedDbImage(source);
+  return urlToDataUrl(source);
+}
+
+function loadImageElement(src) {
+  return new Promise((resolve, reject) => {
+    const image = new Image();
+    image.decoding = "async";
+    image.onload = () => resolve(image);
+    image.onerror = () => reject(new Error("Failed to load image"));
+    image.src = src;
+  });
+}
+
+function canvasHasAlpha(context, width, height) {
+  try {
+    const pixels = context.getImageData(0, 0, width, height).data;
+    for (let index = 3; index < pixels.length; index += 4) {
+      if (pixels[index] < 255) return true;
+    }
+  } catch {
+    return true;
+  }
+  return false;
+}
+
+function canvasToBlob(canvas, mimeType, quality) {
+  return new Promise((resolve) => {
+    canvas.toBlob((blob) => resolve(blob), mimeType, quality);
+  });
+}
+
+async function encodeCanvasImage(canvas, hasAlpha, quality) {
+  const preferredTypes = hasAlpha ? ["image/webp", "image/png"] : ["image/webp", "image/jpeg", "image/png"];
+
+  for (const mimeType of preferredTypes) {
+    const blob = await canvasToBlob(canvas, mimeType, quality);
+    if (blob && (!blob.type || blob.type === mimeType || mimeType === "image/png")) {
+      return { blob, mimeType: blob.type || mimeType };
     }
   }
 
+  throw new Error("Failed to encode image");
+}
+
+async function createPublicImageAsset(source, baseName, options) {
+  if (!source) return { src: "", file: null, missed: false };
+
   try {
-    const value = await urlToDataUrl(source);
-    return { value, embedded: true };
+    const dataUrl = await sourceToDataUrl(source);
+    if (!dataUrl) return { src: "", file: null, missed: true };
+
+    const image = await loadImageElement(dataUrl);
+    const maxSize = options.maxSize || 960;
+    const sourceWidth = image.naturalWidth || image.width || maxSize;
+    const sourceHeight = image.naturalHeight || image.height || maxSize;
+    const scale = Math.min(1, maxSize / Math.max(sourceWidth, sourceHeight));
+    const width = Math.max(1, Math.round(sourceWidth * scale));
+    const height = Math.max(1, Math.round(sourceHeight * scale));
+    const canvas = document.createElement("canvas");
+    canvas.width = width;
+    canvas.height = height;
+    const context = canvas.getContext("2d", { willReadFrequently: true });
+    if (!context) throw new Error("Canvas is not available");
+    context.clearRect(0, 0, width, height);
+    context.drawImage(image, 0, 0, width, height);
+
+    const sourceMime = mimeFromDataUrl(dataUrl);
+    const hasAlpha = sourceMime !== "image/jpeg" && canvasHasAlpha(context, width, height);
+    const { blob, mimeType } = await encodeCanvasImage(canvas, hasAlpha, options.quality || 0.82);
+    const extension = extensionFromMime(mimeType);
+    const path = `${PUBLIC_IMAGE_ASSET_DIR}/${baseName}.${extension}`;
+
+    return {
+      src: path,
+      file: { path, blob },
+      missed: false,
+      originalBytes: Math.ceil((dataUrl.length * 3) / 4),
+      outputBytes: blob.size,
+    };
   } catch {
-    return { value: source, embedded: false };
+    return { src: source, file: null, missed: true };
   }
+}
+
+async function resolvePublicImageAsset(source, baseName, options, cache, files) {
+  if (!source) return { src: "", missed: false };
+  if (cache.has(source)) return cache.get(source);
+
+  const asset = await createPublicImageAsset(source, baseName, options);
+  if (asset.file) files.push(asset.file);
+  cache.set(source, asset);
+  return asset;
+}
+
+function makeCrcTable() {
+  const table = new Uint32Array(256);
+  for (let index = 0; index < 256; index += 1) {
+    let value = index;
+    for (let bit = 0; bit < 8; bit += 1) {
+      value = value & 1 ? 0xedb88320 ^ (value >>> 1) : value >>> 1;
+    }
+    table[index] = value >>> 0;
+  }
+  return table;
+}
+
+const CRC_TABLE = makeCrcTable();
+
+function crc32(bytes) {
+  let crc = 0xffffffff;
+  for (const byte of bytes) {
+    crc = CRC_TABLE[(crc ^ byte) & 0xff] ^ (crc >>> 8);
+  }
+  return (crc ^ 0xffffffff) >>> 0;
+}
+
+function getDosDateTime(date = new Date()) {
+  const year = Math.max(1980, date.getFullYear());
+  const dosTime = (date.getHours() << 11) | (date.getMinutes() << 5) | Math.floor(date.getSeconds() / 2);
+  const dosDate = ((year - 1980) << 9) | ((date.getMonth() + 1) << 5) | date.getDate();
+  return { dosTime, dosDate };
+}
+
+function pushUint16(view, offset, value) {
+  view.setUint16(offset, value, true);
+}
+
+function pushUint32(view, offset, value) {
+  view.setUint32(offset, value >>> 0, true);
+}
+
+async function createZipBlob(files) {
+  const encoder = new TextEncoder();
+  const chunks = [];
+  const centralRecords = [];
+  let offset = 0;
+  const { dosTime, dosDate } = getDosDateTime();
+
+  for (const file of files) {
+    const pathBytes = encoder.encode(file.path);
+    const bytes = new Uint8Array(await file.blob.arrayBuffer());
+    const checksum = crc32(bytes);
+    const header = new Uint8Array(30);
+    const view = new DataView(header.buffer);
+
+    pushUint32(view, 0, 0x04034b50);
+    pushUint16(view, 4, 20);
+    pushUint16(view, 6, 0);
+    pushUint16(view, 8, 0);
+    pushUint16(view, 10, dosTime);
+    pushUint16(view, 12, dosDate);
+    pushUint32(view, 14, checksum);
+    pushUint32(view, 18, bytes.length);
+    pushUint32(view, 22, bytes.length);
+    pushUint16(view, 26, pathBytes.length);
+    pushUint16(view, 28, 0);
+
+    chunks.push(header, pathBytes, bytes);
+    centralRecords.push({ pathBytes, checksum, size: bytes.length, offset });
+    offset += header.length + pathBytes.length + bytes.length;
+  }
+
+  const centralStart = offset;
+  for (const record of centralRecords) {
+    const header = new Uint8Array(46);
+    const view = new DataView(header.buffer);
+    pushUint32(view, 0, 0x02014b50);
+    pushUint16(view, 4, 20);
+    pushUint16(view, 6, 20);
+    pushUint16(view, 8, 0);
+    pushUint16(view, 10, 0);
+    pushUint16(view, 12, dosTime);
+    pushUint16(view, 14, dosDate);
+    pushUint32(view, 16, record.checksum);
+    pushUint32(view, 20, record.size);
+    pushUint32(view, 24, record.size);
+    pushUint16(view, 28, record.pathBytes.length);
+    pushUint16(view, 30, 0);
+    pushUint16(view, 32, 0);
+    pushUint16(view, 34, 0);
+    pushUint16(view, 36, 0);
+    pushUint32(view, 38, 0);
+    pushUint32(view, 42, record.offset);
+    chunks.push(header, record.pathBytes);
+    offset += header.length + record.pathBytes.length;
+  }
+
+  const centralSize = offset - centralStart;
+  const end = new Uint8Array(22);
+  const endView = new DataView(end.buffer);
+  pushUint32(endView, 0, 0x06054b50);
+  pushUint16(endView, 4, 0);
+  pushUint16(endView, 6, 0);
+  pushUint16(endView, 8, centralRecords.length);
+  pushUint16(endView, 10, centralRecords.length);
+  pushUint32(endView, 12, centralSize);
+  pushUint32(endView, 16, centralStart);
+  pushUint16(endView, 20, 0);
+  chunks.push(end);
+
+  return new Blob(chunks, { type: "application/zip" });
+}
+
+function downloadBlob(blob, filename) {
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+}
+
+async function buildExternalPublicExport({ stars, selectedId, bgmUrl, backgroundImageUrl }) {
+  const files = [];
+  const cache = new Map();
+  const backgroundAsset = await resolvePublicImageAsset(
+    backgroundImageUrl || DEFAULT_BACKGROUND_URL,
+    "background",
+    PUBLIC_IMAGE_TARGETS.background,
+    cache,
+    files,
+  );
+  const publicStars = await Promise.all(
+    stars.map(async (star, index) => {
+      const starKey = sanitizeAssetName(star.id || `star-${index + 1}`, `star-${index + 1}`);
+      const sourceCharacters = getDisplayCharacters(star);
+      const [starImage, sceneImage, characters] = await Promise.all([
+        resolvePublicImageAsset(
+          star.imageUrl,
+          `${String(index + 1).padStart(2, "0")}-${starKey}-star`,
+          PUBLIC_IMAGE_TARGETS.star,
+          cache,
+          files,
+        ),
+        resolvePublicImageAsset(
+          star.sceneImageUrl,
+          `${String(index + 1).padStart(2, "0")}-${starKey}-scene`,
+          PUBLIC_IMAGE_TARGETS.scene,
+          cache,
+          files,
+        ),
+        Promise.all(
+          sourceCharacters.map(async (character, characterIndex) => {
+            const characterAsset = await resolvePublicImageAsset(
+              character.imageUrl,
+              `${String(index + 1).padStart(2, "0")}-${starKey}-character-${String(characterIndex + 1).padStart(2, "0")}`,
+              PUBLIC_IMAGE_TARGETS.character,
+              cache,
+              files,
+            );
+            return {
+              ...character,
+              imageUrl: characterAsset.src,
+              imageEmbedded: !characterAsset.missed || !character.imageUrl,
+            };
+          }),
+        ),
+      ]);
+      return {
+        ...star,
+        ...getPrimaryCharacterFields(characters, star.name, star.description),
+        characters,
+        imageUrl: starImage.src,
+        sceneImageUrl: sceneImage.src,
+        imageEmbedded: !starImage.missed,
+        sceneImageEmbedded: !sceneImage.missed || !star.sceneImageUrl,
+        missedCharacterAssets: characters.reduce((total, character) => total + (character.imageEmbedded ? 0 : 1), 0),
+      };
+    }),
+  );
+  const missedAssets =
+    (backgroundAsset.missed ? 1 : 0) +
+    publicStars.reduce(
+      (total, star) =>
+        total +
+        (star.imageEmbedded ? 0 : 1) +
+        (star.sceneImageEmbedded ? 0 : 1) +
+        (star.missedCharacterAssets || 0),
+      0,
+    );
+  const html = buildPublicHtml({
+    stars: publicStars,
+    selectedId,
+    bgmUrl,
+    backgroundDataUrl: backgroundAsset.src,
+  });
+  const htmlBlob = new Blob([html], { type: "text/html;charset=utf-8" });
+  const zipBlob = await createZipBlob([{ path: "index.html", blob: htmlBlob }, ...files]);
+
+  return {
+    blob: zipBlob,
+    assetCount: files.length,
+    missedAssets,
+  };
 }
 
 function escapeJsonForHtml(data) {
@@ -1388,6 +1696,12 @@ button { font: inherit; }
   .public-top { align-items: flex-start; flex-direction: column; }
   .public-audio { flex-wrap: wrap; max-width: 100%; }
   .public-audio button { min-width: 0; }
+  .public-top,
+  .public-detail,
+  .feature-overlay,
+  .star-detail-sheet {
+    backdrop-filter: none;
+  }
   .public-main {
     width: 100%;
     max-width: 100%;
@@ -1404,11 +1718,34 @@ button { font: inherit; }
     border-top: 1px solid rgba(174,207,235,.2);
   }
   .shooting-star { display: none; }
+  .feature-overlay {
+    background: rgba(1,4,9,.84);
+  }
+  .feature-overlay::before {
+    display: none;
+  }
   .feature-modal {
     width: min(760px, calc(100vw - 28px));
     max-height: calc(100svh - 28px);
     gap: 18px;
     padding: 18px;
+    border-radius: 18px;
+    box-shadow: 0 18px 50px rgba(0,0,0,.5), 0 1px 0 rgba(255,255,255,.08) inset;
+    animation: featureFade .18s var(--ease-out) both;
+  }
+  .feature-modal::after {
+    opacity: .26;
+  }
+  .feature-modal .feature-hero,
+  .feature-modal .feature-kicker,
+  .feature-modal .feature-work-details h2,
+  .feature-modal .feature-work-description,
+  .feature-modal .feature-link,
+  .feature-modal .feature-section-title,
+  .feature-modal .feature-character,
+  .feature-modal .feature-character-name,
+  .feature-modal .feature-character-text {
+    animation: none;
   }
   .feature-hero {
     min-height: clamp(260px, 64vw, 520px);
@@ -1422,6 +1759,7 @@ button { font: inherit; }
   }
   .feature-character img {
     height: min(52svh, 500px);
+    filter: none;
   }
 
 
@@ -1556,7 +1894,7 @@ function renderImageOrEmpty(src, className, label, alt, tagName = "div") {
   if (!src) {
     return '<' + tag + ' class="' + className + '"><div class="feature-empty">' + escapeHtml(label) + '</div></' + tag + '>';
   }
-  return '<' + tag + ' class="' + className + '"><img alt="' + escapeAttr(alt) + '" src="' + escapeAttr(src) + '" /></' + tag + '>';
+  return '<' + tag + ' class="' + className + '"><img loading="lazy" decoding="async" alt="' + escapeAttr(alt) + '" src="' + escapeAttr(src) + '" /></' + tag + '>';
 }
 
 function getCharacters(star) {
@@ -1740,7 +2078,7 @@ function render() {
     button.style.animationDelay = (index % 6) * -.42 + "s";
     button.setAttribute("aria-label", star.name);
     button.dataset.starId = star.id;
-    button.innerHTML = '<img alt="" src="' + escapeAttr(star.imageUrl) + '" />';
+    button.innerHTML = '<img loading="lazy" decoding="async" alt="" src="' + escapeAttr(star.imageUrl) + '" />';
     button.addEventListener("click", (event) => zoomToStar(star.id, event.currentTarget));
     map.appendChild(button);
   });
@@ -1748,7 +2086,7 @@ function render() {
   detail.innerHTML = \`
     <div class="detail-kicker">STAR \${String(stars.indexOf(selected) + 1).padStart(2, "0")}</div>
     <h2>\${escapeHtml(selected.name)}</h2>
-    <img class="hero-star" alt="\${escapeAttr(selected.name)}" src="\${escapeAttr(selected.imageUrl)}" />
+    <img class="hero-star" loading="lazy" decoding="async" alt="\${escapeAttr(selected.name)}" src="\${escapeAttr(selected.imageUrl)}" />
     <p>\${escapeHtml(selected.description)}</p>
     <div class="meta-grid">
       <div class="meta-row"><span>制作者</span><strong>\${escapeHtml(selected.creatorName || "未設定")}</strong></div>
@@ -2499,68 +2837,17 @@ function App() {
     setIsExporting(true);
     setExportStatus("");
     try {
-      const embeddedBackground = await embedAsset(backgroundImageUrl || DEFAULT_BACKGROUND_URL);
-      const embeddedStars = await Promise.all(
-        stars.map(async (star) => {
-          const sourceCharacters = getDisplayCharacters(star);
-          const [embeddedImage, embeddedSceneImage, embeddedCharacters] = await Promise.all([
-            embedAsset(star.imageUrl),
-            embedAsset(star.sceneImageUrl),
-            Promise.all(
-              sourceCharacters.map(async (character) => {
-                const embeddedCharacterImage = await embedAsset(character.imageUrl);
-                return {
-                  ...character,
-                  imageUrl: embeddedCharacterImage.value,
-                  imageEmbedded: embeddedCharacterImage.embedded || !character.imageUrl,
-                };
-              }),
-            ),
-          ]);
-          return {
-            ...star,
-            ...getPrimaryCharacterFields(embeddedCharacters, star.name, star.description),
-            characters: embeddedCharacters,
-            imageUrl: embeddedImage.value,
-            sceneImageUrl: embeddedSceneImage.value,
-            imageEmbedded: embeddedImage.embedded,
-            sceneImageEmbedded: embeddedSceneImage.embedded || !star.sceneImageUrl,
-            missedCharacterAssets: embeddedCharacters.reduce(
-              (total, character) => total + (character.imageEmbedded ? 0 : 1),
-              0,
-            ),
-          };
-        }),
-      );
-      const missedAssets =
-        (embeddedBackground.embedded ? 0 : 1) +
-        embeddedStars.reduce(
-          (total, star) =>
-            total +
-            (star.imageEmbedded ? 0 : 1) +
-            (star.sceneImageEmbedded ? 0 : 1) +
-            (star.missedCharacterAssets || 0),
-          0,
-        );
-      const html = buildPublicHtml({
-        stars: embeddedStars,
+      const publicExport = await buildExternalPublicExport({
+        stars,
         selectedId: selectedStar?.id,
         bgmUrl: globalBgmUrl,
-        backgroundDataUrl: embeddedBackground.value,
+        backgroundImageUrl,
       });
-      const blob = new Blob([html], { type: "text/html;charset=utf-8" });
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement("a");
-      link.href = url;
-      link.download = "a-plan-star-gallery-public.html";
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
-      URL.revokeObjectURL(url);
+      downloadBlob(publicExport.blob, PUBLIC_EXPORT_FILENAME);
       setExportStatus(
-        missedAssets > 0
-          ? `公開HTMLを生成しました（一部URL参照 ${missedAssets}件）`
-          : "公開HTMLを生成しました",
+        publicExport.missedAssets > 0
+          ? `公開ZIPを生成しました（画像 ${publicExport.assetCount}件 / 一部URL参照 ${publicExport.missedAssets}件）`
+          : `公開ZIPを生成しました（画像 ${publicExport.assetCount}件）`,
       );
       window.setTimeout(() => setExportStatus(""), 3200);
     } catch {
@@ -2646,7 +2933,7 @@ function App() {
           </button>
           <button className="primary-button" type="button" onClick={exportPublicPage} disabled={isExporting}>
             <DownloadSimple size={18} weight="bold" />
-            {isExporting ? "生成中" : "公開HTML"}
+            {isExporting ? "生成中" : "公開ZIP"}
           </button>
         </div>
 
@@ -2875,7 +3162,7 @@ function App() {
                     onChange={(event) => uploadSelectedStarImage(event.target.files?.[0])}
                   />
                 </label>
-                <span className="hint-text">公開HTMLでは画像を埋め込みます</span>
+                <span className="hint-text">公開ZIPでは画像をassetsに分離します</span>
               </div>
               <label>
                 この星のBGM URL
