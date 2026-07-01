@@ -9,3 +9,5 @@ When implementing from a selected generated mock, treat that image as the source
 Design decision: On smartphone-width screens, pages should not expose horizontal scrolling or blank space to the right; mobile browsing should be vertical-scroll only.
 
 Performance decision: Public gallery exports should keep large images as external `assets/images/` files and use optimized/resized image assets instead of embedding large `data:image` payloads in `index.html`.
+
+Performance decision: On smartphone-width public pages, work-detail images should load eagerly with explicit dimensions, and the background star map should stop rendering while the work-detail modal is open.

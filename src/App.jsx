@@ -1174,6 +1174,12 @@ button { font: inherit; }
   filter: drop-shadow(0 0 10px var(--c)) blur(2px) saturate(.85);
 }
 .map.is-feature-open .orbit { opacity: .25; transition: opacity 260ms ease; }
+.map.is-feature-open .star-button,
+.map.is-feature-open .star-button::before,
+.map.is-feature-open .star-button.selected::after,
+.map.is-feature-open .orbit {
+  animation-play-state: paused;
+}
 .public-detail {
   position: absolute;
   right: 0;
@@ -1718,6 +1724,21 @@ button { font: inherit; }
     border-top: 1px solid rgba(174,207,235,.2);
   }
   .shooting-star { display: none; }
+  .map.is-feature-open {
+    visibility: hidden;
+    opacity: 0;
+    transform: none !important;
+    transition: none !important;
+  }
+  .map.is-feature-open .orbit,
+  .map.is-feature-open .star-button,
+  .map.is-feature-open .star-button::before,
+  .map.is-feature-open .star-button.selected::after {
+    animation: none !important;
+    transition: none !important;
+    filter: none !important;
+    box-shadow: none !important;
+  }
   .feature-overlay {
     background: rgba(1,4,9,.84);
   }
@@ -1894,7 +1915,10 @@ function renderImageOrEmpty(src, className, label, alt, tagName = "div") {
   if (!src) {
     return '<' + tag + ' class="' + className + '"><div class="feature-empty">' + escapeHtml(label) + '</div></' + tag + '>';
   }
-  return '<' + tag + ' class="' + className + '"><img loading="lazy" decoding="async" alt="' + escapeAttr(alt) + '" src="' + escapeAttr(src) + '" /></' + tag + '>';
+  const dimensions = className === "feature-hero"
+    ? ' width="960" height="640"'
+    : ' width="768" height="768"';
+  return '<' + tag + ' class="' + className + '"><img loading="eager" decoding="sync" fetchpriority="high"' + dimensions + ' alt="' + escapeAttr(alt) + '" src="' + escapeAttr(src) + '" /></' + tag + '>';
 }
 
 function getCharacters(star) {
@@ -1920,6 +1944,18 @@ function renderCharacter(character, index) {
   '</article>';
 }
 
+function preloadFeatureImages(star) {
+  [star.sceneImageUrl].concat(getCharacters(star).map(function(character) { return character.imageUrl; }))
+    .filter(Boolean)
+    .forEach(function(src) {
+      const image = new Image();
+      image.loading = "eager";
+      image.decoding = "sync";
+      image.src = src;
+      if (image.decode) image.decode().catch(function() {});
+    });
+}
+
 function renderFeature(star) {
   const workUrl = safePublicUrl(star.workUrl);
   const linkHtml = workUrl
@@ -1939,6 +1975,9 @@ function renderFeature(star) {
       '<h3 class="feature-section-title">キャラクター紹介</h3>' +
       '<div class="feature-character-list">' + characterHtml + '</div>' +
     '</section>';
+  featureBody.querySelectorAll("img").forEach(function(image) {
+    if (image.decode) image.decode().catch(function() {});
+  });
 }
 
 function setFeatureOrigin(originEl) {
@@ -1964,6 +2003,7 @@ function openFeature(id, originEl) {
   setFeatureOrigin(originEl);
   const star = pickStar();
   map.classList.add("is-feature-open");
+  preloadFeatureImages(star);
   render();
   renderFeature(star);
   featureOverlay.classList.remove("is-closing");
@@ -2209,6 +2249,18 @@ function StarFeatureModal({ star, origin, onClose, resolveImageSource = (value) 
   const requestClose = useCallback(() => setClosing(true), []);
 
   useEffect(() => {
+    [sceneImageSrc, ...characters.map((character) => resolveImageSource(character.imageUrl))]
+      .filter(Boolean)
+      .forEach((src) => {
+        const image = new window.Image();
+        image.loading = "eager";
+        image.decoding = "sync";
+        image.src = src;
+        image.decode?.().catch(() => {});
+      });
+  }, [characters, resolveImageSource, sceneImageSrc]);
+
+  useEffect(() => {
     if (!closing) return undefined;
     const handle = window.setTimeout(onClose, 300);
     return () => window.clearTimeout(handle);
@@ -2267,7 +2319,15 @@ function StarFeatureModal({ star, origin, onClose, resolveImageSource = (value) 
 
         <section className="feature-hero">
           {sceneImageSrc ? (
-            <img alt={star.workTitle || star.name} src={sceneImageSrc} />
+            <img
+              alt={star.workTitle || star.name}
+              src={sceneImageSrc}
+              loading="eager"
+              decoding="sync"
+              fetchPriority="high"
+              width="960"
+              height="640"
+            />
           ) : (
             <div className="feature-empty">作品タイトル画像未設定</div>
           )}
@@ -2296,7 +2356,15 @@ function StarFeatureModal({ star, origin, onClose, resolveImageSource = (value) 
                 <article className="feature-character-card" key={character.id || `${character.name}-${index}`}>
                   <div className="feature-character">
                     {characterImageSrc ? (
-                      <img alt={character.name || "キャラクター"} src={characterImageSrc} />
+                      <img
+                        alt={character.name || "キャラクター"}
+                        src={characterImageSrc}
+                        loading="eager"
+                        decoding="sync"
+                        fetchPriority="high"
+                        width="768"
+                        height="768"
+                      />
                     ) : (
                       <div className="feature-empty">キャラ画像未設定</div>
                     )}
