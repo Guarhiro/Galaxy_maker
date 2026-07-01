@@ -658,9 +658,16 @@ function buildPublicHtml({ stars, selectedId, bgmUrl, backgroundDataUrl }) {
   color: #f6fbff;
 }
 * { box-sizing: border-box; }
+html {
+  width: 100%;
+  max-width: 100%;
+  overflow-x: hidden;
+}
 body {
   margin: 0;
   min-height: 100vh;
+  width: 100%;
+  max-width: 100%;
   overflow: hidden;
   background: #03070d;
 }
@@ -1370,10 +1377,23 @@ button { font: inherit; }
   .star-detail-sheet { animation: featureFade .16s ease-out !important; }
 }
 @media (max-width: 900px) {
-  body { overflow: auto; }
-  .public-shell { min-height: 100svh; }
+  html { overflow-x: hidden; }
+  body { overflow-x: hidden; overflow-y: auto; }
+  .public-shell {
+    width: 100%;
+    max-width: 100%;
+    min-height: 100svh;
+    overflow-x: clip;
+  }
   .public-top { align-items: flex-start; flex-direction: column; }
-  .public-main { min-height: 940px; }
+  .public-audio { flex-wrap: wrap; max-width: 100%; }
+  .public-audio button { min-width: 0; }
+  .public-main {
+    width: 100%;
+    max-width: 100%;
+    min-height: 940px;
+    overflow-x: clip;
+  }
   .map { inset: 0 0 420px 0; }
   .public-detail {
     top: auto;
@@ -1383,6 +1403,7 @@ button { font: inherit; }
     border-left: 0;
     border-top: 1px solid rgba(174,207,235,.2);
   }
+  .shooting-star { display: none; }
   .feature-modal {
     width: min(760px, calc(100vw - 28px));
     max-height: calc(100svh - 28px);
