@@ -59,12 +59,25 @@
   box-sizing: border-box;
 }
 
+html {
+  width: 100%;
+  max-width: 100%;
+  overflow-x: hidden;
+}
+
 body {
   margin: 0;
   min-width: 320px;
   min-height: 100vh;
+  width: 100%;
+  max-width: 100%;
   -webkit-font-smoothing: antialiased;
   overflow: hidden;
+}
+
+#root {
+  width: 100%;
+  max-width: 100%;
 }
 
 button,
@@ -1841,14 +1854,26 @@ input[type="range"] {
 }
 
 @media (max-width: 900px) {
+  html {
+    overflow-x: hidden;
+  }
+
   body {
-    overflow: auto;
+    overflow-x: hidden;
+    overflow-y: auto;
   }
 
   .app-shell {
+    width: 100%;
+    max-width: 100%;
     height: auto;
     min-height: 100svh;
-    overflow: visible;
+    overflow-x: clip;
+    overflow-y: visible;
+  }
+
+  .app-shell::before {
+    inset: -8% 0;
   }
 
   .topbar {
@@ -1857,22 +1882,34 @@ input[type="range"] {
     grid-template-columns: 1fr;
     gap: 12px;
     min-height: 0;
+    width: 100%;
+    max-width: 100%;
   }
 
   .top-actions,
   .audio-controls,
   .publish-actions {
     flex-wrap: wrap;
+    max-width: 100%;
+  }
+
+  .volume {
+    grid-template-columns: auto minmax(72px, 94px) auto;
+    max-width: 100%;
   }
 
   .workspace,
   .is-preview-mode .workspace {
     grid-template-columns: 1fr;
     grid-template-rows: auto minmax(560px, 68vh) auto;
+    width: 100%;
+    max-width: 100%;
+    overflow-x: clip;
   }
 
   .star-catalog {
     margin: 14px 14px 0;
+    max-width: calc(100% - 28px);
     height: auto;
     max-height: 220px;
   }
@@ -1880,14 +1917,27 @@ input[type="range"] {
   .space-map,
   .is-preview-mode .space-map {
     grid-column: 1;
+    width: 100%;
+    max-width: 100%;
     min-height: 560px;
   }
 
   .detail-panel,
   .is-preview-mode .detail-panel {
     grid-column: 1;
+    width: 100%;
+    max-width: 100%;
     border-left: 0;
     border-top: 1px solid rgba(180, 210, 235, 0.18);
+  }
+
+  .form-grid,
+  .detail-actions {
+    grid-template-columns: 1fr;
+  }
+
+  .shooting-star {
+    display: none;
   }
 
   .feature-modal {
