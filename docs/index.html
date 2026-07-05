@@ -274,6 +274,7 @@ button { font: inherit; }
   color: rgba(226,239,251,.78);
   font-size: 14px;
   line-height: 1.8;
+  white-space: pre-line;
 }
 .meta-grid {
   display: grid;
@@ -289,9 +290,18 @@ button { font: inherit; }
   color: rgba(226,239,251,.78);
   font-size: 13px;
 }
+.meta-row.is-planet-notes {
+  grid-template-columns: 1fr;
+  align-items: start;
+  gap: 6px;
+}
 .meta-row strong {
   color: #f6fbff;
   font-weight: 600;
+}
+.meta-row.is-planet-notes strong {
+  line-height: 1.7;
+  white-space: pre-line;
 }
 .swatch {
   display: inline-block;
@@ -434,9 +444,8 @@ button { font: inherit; }
 }
 .feature-hero {
   width: 100%;
-  aspect-ratio: 16 / 9;
   flex: 0 0 auto;
-  min-height: 0;
+  min-height: clamp(280px, 52vw, 560px);
   padding: 12px;
   background:
     radial-gradient(circle at center, color-mix(in srgb, var(--feature-color, #ffd34d), transparent 70%), transparent 62%),
@@ -444,9 +453,10 @@ button { font: inherit; }
 }
 .feature-hero img {
   display: block;
-  width: 100%;
-  height: 100%;
-  max-height: none;
+  width: auto;
+  height: auto;
+  max-width: 100%;
+  max-height: min(72svh, 760px);
   object-fit: contain;
 }
 .feature-character {
@@ -689,6 +699,7 @@ button { font: inherit; }
 .star-detail-desc {
   margin: 14px 0 18px; color: rgba(226,239,251,.78);
   font-size: 14px; line-height: 1.8;
+  white-space: pre-line;
 }
 .star-detail-meta {
   display: grid; gap: 10px; padding: 18px 0;
@@ -700,8 +711,25 @@ button { font: inherit; }
   display: grid; grid-template-columns: 80px 1fr;
   align-items: center; gap: 12px;
 }
+.star-detail-meta > div.is-planet-notes {
+  grid-template-columns: 1fr;
+  align-items: start;
+  gap: 6px;
+}
 .star-detail-meta span { color: rgba(226,239,251,.64); font-size: 13px; }
 .star-detail-meta strong { color: rgba(247,251,255,.9); font-size: 13px; font-weight: 650; }
+.star-detail-meta > div.is-planet-notes strong {
+  line-height: 1.7;
+  white-space: pre-line;
+}
+.star-detail-work-count {
+  display: inline-flex; align-items: center; justify-content: center;
+  min-height: 28px; width: max-content; margin: 0 0 10px; padding: 0 10px;
+  border: 1px solid rgba(255,211,77,.28); border-radius: 999px;
+  color: #ffd34d; background: rgba(255,211,77,.08);
+  font-size: 12px; font-weight: 850; letter-spacing: .08em;
+}
+.star-detail-work-actions { display: grid; gap: 10px; }
 .star-detail-work-btn {
   display: flex; align-items: center; justify-content: center;
   width: 100%; min-height: 48px; border: none; border-radius: 10px;
@@ -713,12 +741,16 @@ button { font: inherit; }
 .star-detail-sheet .star-detail-header,
 .star-detail-sheet .star-detail-desc,
 .star-detail-sheet .star-detail-meta,
+.star-detail-sheet .star-detail-work-count,
+.star-detail-sheet .star-detail-work-actions,
 .star-detail-sheet .star-detail-work-btn {
   animation: featureContentIn 460ms var(--ease-out) both;
 }
 .star-detail-sheet .star-detail-header { animation-delay: 50ms; }
 .star-detail-sheet .star-detail-desc { animation-delay: 130ms; }
 .star-detail-sheet .star-detail-meta { animation-delay: 210ms; }
+.star-detail-sheet .star-detail-work-count,
+.star-detail-sheet .star-detail-work-actions,
 .star-detail-sheet .star-detail-work-btn { animation-delay: 290ms; }
 @keyframes sheetSlideUp {
   from { opacity: 0; transform: translateX(-50%) translateY(100%); }
@@ -823,9 +855,12 @@ button { font: inherit; }
   .feature-modal .feature-character-text {
     animation: none;
   }
+  .feature-hero {
+    min-height: clamp(260px, 64vw, 520px);
+    padding: 10px;
+  }
   .feature-hero img {
-    height: 100%;
-    max-height: none;
+    max-height: min(62svh, 620px);
   }
   .feature-character {
     min-height: 360px;
@@ -863,8 +898,8 @@ button { font: inherit; }
     </div>
     <div class="public-audio">
       <button id="audioToggle">BGM再生</button>
-      <span id="audioLabel">未設定</span>
-      <audio id="bgm" loop src=""></audio>
+      <span id="audioLabel">assets/audio/gallery.mp3</span>
+      <audio id="bgm" loop src="assets/audio/gallery.mp3"></audio>
     </div>
   </header>
   <main class="public-main" id="publicMain">
@@ -885,9 +920,11 @@ button { font: inherit; }
   </section>
 </div>
 <script>
-const stars = [{"id":"star-1","name":"エテルニア・ステラリア","description":"銀河の奥でひらかれる、気高く甘いティータイム。星を選ぶと専用BGMに切り替わります。","color":"#ffd34d","size":0.85,"x":50.4,"y":49.8,"z":1,"imageUrl":"assets/images/01-star-1-star.png","bgmUrl":"assets/audio/ginga-wa-warawa-no-teatime.mp3","creatorName":"星詠み工房","characterName":"エテルニア・ステラリア","standingImageUrl":"","sceneImageUrl":"","pastedText":"黄金航路を渡る観測者。\n静かな光の奥に、まだ誰にも開かれていない記録を抱えている。","characters":[{"id":"character-1","name":"エテルニア・ステラリア","imageUrl":"","description":"黄金航路を渡る観測者。\n静かな光の奥に、まだ誰にも開かれていない記録を抱えている。","imageEmbedded":true}],"workDescription":"銀河の奥でひらかれる、気高く甘いティータイム。星を選ぶと専用BGMに切り替わります。","workTitle":"エテルニア・ステラリア","workUrl":"","planetClass":"","planetRadius":"","planetGravity":"","planetSeaLandRatio":"","planetAtmosphereColor":"","planetOceanColor":"","planetCloudCover":"","planetIceCaps":"","planetRotation":"","planetOrbitalPeriod":"","planetMoons":"","planetRings":"","updatedAt":"2026-06-25T05:41:54.226Z","imageEmbedded":true,"sceneImageEmbedded":true,"missedCharacterAssets":0},{"id":"star-2","name":"ティアマト","description":"ティアマトは、ゆっくり瞬く光と独自の軌道を持つ観測対象。クリックすると星の記録がここに表示されます。","color":"#7bd8ff","size":0.99,"x":42,"y":23,"z":1.17,"imageUrl":"assets/images/02-star-2-star.png","bgmUrl":"","creatorName":"Creator 02","characterName":"ティアマト","standingImageUrl":"","sceneImageUrl":"","pastedText":"ティアマトの紹介テキストをここに貼り付けます。\n改行を入れた文章も、そのまま公開ポップアップに反映されます。","characters":[{"id":"character-1","name":"ティアマト","imageUrl":"","description":"ティアマトの紹介テキストをここに貼り付けます。\n改行を入れた文章も、そのまま公開ポップアップに反映されます。","imageEmbedded":true}],"workDescription":"ティアマトの作品紹介文をここに入力します。","workTitle":"ティアマトの作品","workUrl":"","planetClass":"","planetRadius":"","planetGravity":"","planetSeaLandRatio":"","planetAtmosphereColor":"","planetOceanColor":"","planetCloudCover":"","planetIceCaps":"","planetRotation":"","planetOrbitalPeriod":"","planetMoons":"","planetRings":"","updatedAt":"2026-06-23T06:11:29.210Z","imageEmbedded":true,"sceneImageEmbedded":true,"missedCharacterAssets":0},{"id":"star-3","name":"ルミナス","description":"ルミナスは、ゆっくり瞬く光と独自の軌道を持つ観測対象。クリックすると星の記録がここに表示されます。","color":"#f8fbff","size":1.13,"x":25,"y":34,"z":1.34,"imageUrl":"assets/images/03-star-3-star.png","bgmUrl":"","creatorName":"Creator 03","characterName":"ルミナス","standingImageUrl":"","sceneImageUrl":"","pastedText":"ルミナスの紹介テキストをここに貼り付けます。\n改行を入れた文章も、そのまま公開ポップアップに反映されます。","characters":[{"id":"character-1","name":"ルミナス","imageUrl":"","description":"ルミナスの紹介テキストをここに貼り付けます。\n改行を入れた文章も、そのまま公開ポップアップに反映されます。","imageEmbedded":true}],"workDescription":"ルミナスの作品紹介文をここに入力します。","workTitle":"ルミナスの作品","workUrl":"","planetClass":"","planetRadius":"","planetGravity":"","planetSeaLandRatio":"","planetAtmosphereColor":"","planetOceanColor":"","planetCloudCover":"","planetIceCaps":"","planetRotation":"","planetOrbitalPeriod":"","planetMoons":"","planetRings":"","updatedAt":"2026-06-23T05:56:29.212Z","imageEmbedded":true,"sceneImageEmbedded":true,"missedCharacterAssets":0},{"id":"star-4","name":"カルデア","description":"カルデアは、ゆっくり瞬く光と独自の軌道を持つ観測対象。クリックすると星の記録がここに表示されます。","color":"#ff7a45","size":1.27,"x":73,"y":32,"z":1.51,"imageUrl":"assets/images/04-star-4-star.png","bgmUrl":"","creatorName":"Creator 04","characterName":"カルデア","standingImageUrl":"","sceneImageUrl":"","pastedText":"カルデアの紹介テキストをここに貼り付けます。\n改行を入れた文章も、そのまま公開ポップアップに反映されます。","characters":[{"id":"character-1","name":"カルデア","imageUrl":"","description":"カルデアの紹介テキストをここに貼り付けます。\n改行を入れた文章も、そのまま公開ポップアップに反映されます。","imageEmbedded":true}],"workDescription":"カルデアの作品紹介文をここに入力します。","workTitle":"カルデアの作品","workUrl":"","planetClass":"","planetRadius":"","planetGravity":"","planetSeaLandRatio":"","planetAtmosphereColor":"","planetOceanColor":"","planetCloudCover":"","planetIceCaps":"","planetRotation":"","planetOrbitalPeriod":"","planetMoons":"","planetRings":"","updatedAt":"2026-06-23T05:41:29.215Z","imageEmbedded":true,"sceneImageEmbedded":true,"missedCharacterAssets":0},{"id":"star-5","name":"ネビュラ","description":"ネビュラは、ゆっくり瞬く光と独自の軌道を持つ観測対象。クリックすると星の記録がここに表示されます。","color":"#ffb0df","size":1.4100000000000001,"x":63,"y":24,"z":1.68,"imageUrl":"assets/images/05-star-5-star.png","bgmUrl":"","creatorName":"Creator 05","characterName":"ネビュラ","standingImageUrl":"","sceneImageUrl":"","pastedText":"ネビュラの紹介テキストをここに貼り付けます。\n改行を入れた文章も、そのまま公開ポップアップに反映されます。","characters":[{"id":"character-1","name":"ネビュラ","imageUrl":"","description":"ネビュラの紹介テキストをここに貼り付けます。\n改行を入れた文章も、そのまま公開ポップアップに反映されます。","imageEmbedded":true}],"workDescription":"ネビュラの作品紹介文をここに入力します。","workTitle":"ネビュラの作品","workUrl":"","planetClass":"","planetRadius":"","planetGravity":"","planetSeaLandRatio":"","planetAtmosphereColor":"","planetOceanColor":"","planetCloudCover":"","planetIceCaps":"","planetRotation":"","planetOrbitalPeriod":"","planetMoons":"","planetRings":"","updatedAt":"2026-06-23T05:26:29.217Z","imageEmbedded":true,"sceneImageEmbedded":true,"missedCharacterAssets":0},{"id":"star-6","name":"オリオンス","description":"オリオンスは、ゆっくり瞬く光と独自の軌道を持つ観測対象。クリックすると星の記録がここに表示されます。","color":"#59d5ff","size":0.85,"x":60,"y":37,"z":1.85,"imageUrl":"assets/images/06-star-6-star.png","bgmUrl":"","creatorName":"Creator 06","characterName":"オリオンス","standingImageUrl":"","sceneImageUrl":"","pastedText":"オリオンスの紹介テキストをここに貼り付けます。\n改行を入れた文章も、そのまま公開ポップアップに反映されます。","characters":[{"id":"character-1","name":"オリオンス","imageUrl":"","description":"オリオンスの紹介テキストをここに貼り付けます。\n改行を入れた文章も、そのまま公開ポップアップに反映されます。","imageEmbedded":true}],"workDescription":"オリオンスの作品紹介文をここに入力します。","workTitle":"オリオンスの作品","workUrl":"","planetClass":"","planetRadius":"","planetGravity":"","planetSeaLandRatio":"","planetAtmosphereColor":"","planetOceanColor":"","planetCloudCover":"","planetIceCaps":"","planetRotation":"","planetOrbitalPeriod":"","planetMoons":"","planetRings":"","updatedAt":"2026-06-23T05:11:29.219Z","imageEmbedded":true,"sceneImageEmbedded":true,"missedCharacterAssets":0},{"id":"star-7","name":"ヴェリタス","description":"ヴェリタスは、ゆっくり瞬く光と独自の軌道を持つ観測対象。クリックすると星の記録がここに表示されます。","color":"#8da7ff","size":0.99,"x":34,"y":45,"z":2.02,"imageUrl":"assets/images/07-star-7-star.png","bgmUrl":"","creatorName":"Creator 07","characterName":"ヴェリタス","standingImageUrl":"","sceneImageUrl":"","pastedText":"ヴェリタスの紹介テキストをここに貼り付けます。\n改行を入れた文章も、そのまま公開ポップアップに反映されます。","characters":[{"id":"character-1","name":"ヴェリタス","imageUrl":"","description":"ヴェリタスの紹介テキストをここに貼り付けます。\n改行を入れた文章も、そのまま公開ポップアップに反映されます。","imageEmbedded":true}],"workDescription":"ヴェリタスの作品紹介文をここに入力します。","workTitle":"ヴェリタスの作品","workUrl":"","planetClass":"","planetRadius":"","planetGravity":"","planetSeaLandRatio":"","planetAtmosphereColor":"","planetOceanColor":"","planetCloudCover":"","planetIceCaps":"","planetRotation":"","planetOrbitalPeriod":"","planetMoons":"","planetRings":"","updatedAt":"2026-06-25T05:41:51.377Z","imageEmbedded":true,"sceneImageEmbedded":true,"missedCharacterAssets":0},{"id":"star-8","name":"クレシェンド","description":"クレシェンドは、ゆっくり瞬く光と独自の軌道を持つ観測対象。クリックすると星の記録がここに表示されます。","color":"#7ff4dc","size":1.13,"x":27,"y":22,"z":2.19,"imageUrl":"assets/images/08-star-8-star.png","bgmUrl":"","creatorName":"Creator 08","characterName":"クレシェンド","standingImageUrl":"","sceneImageUrl":"","pastedText":"クレシェンドの紹介テキストをここに貼り付けます。\n改行を入れた文章も、そのまま公開ポップアップに反映されます。","characters":[{"id":"character-1","name":"クレシェンド","imageUrl":"","description":"クレシェンドの紹介テキストをここに貼り付けます。\n改行を入れた文章も、そのまま公開ポップアップに反映されます。","imageEmbedded":true}],"workDescription":"クレシェンドの作品紹介文をここに入力します。","workTitle":"クレシェンドの作品","workUrl":"","planetClass":"","planetRadius":"","planetGravity":"","planetSeaLandRatio":"","planetAtmosphereColor":"","planetOceanColor":"","planetCloudCover":"","planetIceCaps":"","planetRotation":"","planetOrbitalPeriod":"","planetMoons":"","planetRings":"","updatedAt":"2026-06-23T04:41:29.224Z","imageEmbedded":true,"sceneImageEmbedded":true,"missedCharacterAssets":0},{"id":"star-9","name":"アストレイア","description":"アストレイアは、ゆっくり瞬く光と独自の軌道を持つ観測対象。クリックすると星の記録がここに表示されます。","color":"#e8d3ad","size":1.27,"x":64.6,"y":58.2,"z":2.36,"imageUrl":"assets/images/09-star-9-star.png","bgmUrl":"","creatorName":"Creator 09","characterName":"アストレイア","standingImageUrl":"","sceneImageUrl":"","pastedText":"アストレイアの紹介テキストをここに貼り付けます。\n改行を入れた文章も、そのまま公開ポップアップに反映されます。","characters":[{"id":"character-1","name":"アストレイア","imageUrl":"","description":"アストレイアの紹介テキストをここに貼り付けます。\n改行を入れた文章も、そのまま公開ポップアップに反映されます。","imageEmbedded":true}],"workDescription":"アストレイアの作品紹介文をここに入力します。","workTitle":"アストレイアの作品","workUrl":"","planetClass":"","planetRadius":"","planetGravity":"","planetSeaLandRatio":"","planetAtmosphereColor":"","planetOceanColor":"","planetCloudCover":"","planetIceCaps":"","planetRotation":"","planetOrbitalPeriod":"","planetMoons":"","planetRings":"","updatedAt":"2026-06-25T05:42:00.409Z","imageEmbedded":true,"sceneImageEmbedded":true,"missedCharacterAssets":0},{"id":"star-10","name":"イクリプス","description":"イクリプスは、ゆっくり瞬く光と独自の軌道を持つ観測対象。クリックすると星の記録がここに表示されます。","color":"#f8aa3d","size":1.4100000000000001,"x":71.6,"y":66.2,"z":2.53,"imageUrl":"assets/images/10-star-10-star.png","bgmUrl":"","creatorName":"Creator 10","characterName":"イクリプス","standingImageUrl":"","sceneImageUrl":"","pastedText":"イクリプスの紹介テキストをここに貼り付けます。\n改行を入れた文章も、そのまま公開ポップアップに反映されます。","characters":[{"id":"character-1","name":"イクリプス","imageUrl":"","description":"イクリプスの紹介テキストをここに貼り付けます。\n改行を入れた文章も、そのまま公開ポップアップに反映されます。","imageEmbedded":true}],"workDescription":"イクリプスの作品紹介文をここに入力します。","workTitle":"イクリプスの作品","workUrl":"","planetClass":"","planetRadius":"","planetGravity":"","planetSeaLandRatio":"","planetAtmosphereColor":"","planetOceanColor":"","planetCloudCover":"","planetIceCaps":"","planetRotation":"","planetOrbitalPeriod":"","planetMoons":"","planetRings":"","updatedAt":"2026-06-25T05:41:59.891Z","imageEmbedded":true,"sceneImageEmbedded":true,"missedCharacterAssets":0},{"id":"star-11","name":"ソルナ","description":"ソルナは、ゆっくり瞬く光と独自の軌道を持つ観測対象。クリックすると星の記録がここに表示されます。","color":"#d4ff95","size":0.85,"x":37.2,"y":38.1,"z":2.7,"imageUrl":"assets/images/11-star-11-star.png","bgmUrl":"","creatorName":"Creator 11","characterName":"ソルナ","standingImageUrl":"","sceneImageUrl":"","pastedText":"ソルナの紹介テキストをここに貼り付けます。\n改行を入れた文章も、そのまま公開ポップアップに反映されます。","characters":[{"id":"character-1","name":"ソルナ","imageUrl":"","description":"ソルナの紹介テキストをここに貼り付けます。\n改行を入れた文章も、そのまま公開ポップアップに反映されます。","imageEmbedded":true}],"workDescription":"ソルナの作品紹介文をここに入力します。","workTitle":"ソルナの作品","workUrl":"","planetClass":"","planetRadius":"","planetGravity":"","planetSeaLandRatio":"","planetAtmosphereColor":"","planetOceanColor":"","planetCloudCover":"","planetIceCaps":"","planetRotation":"","planetOrbitalPeriod":"","planetMoons":"","planetRings":"","updatedAt":"2026-06-25T05:41:51.987Z","imageEmbedded":true,"sceneImageEmbedded":true,"missedCharacterAssets":0},{"id":"star-12","name":"プリムローズ","description":"プリムローズは、ゆっくり瞬く光と独自の軌道を持つ観測対象。クリックすると星の記録がここに表示されます。","color":"#f06b7a","size":0.99,"x":22,"y":54,"z":2.87,"imageUrl":"assets/images/12-star-12-star.png","bgmUrl":"","creatorName":"Creator 12","characterName":"プリムローズ","standingImageUrl":"","sceneImageUrl":"","pastedText":"プリムローズの紹介テキストをここに貼り付けます。\n改行を入れた文章も、そのまま公開ポップアップに反映されます。","characters":[{"id":"character-1","name":"プリムローズ","imageUrl":"","description":"プリムローズの紹介テキストをここに貼り付けます。\n改行を入れた文章も、そのまま公開ポップアップに反映されます。","imageEmbedded":true}],"workDescription":"プリムローズの作品紹介文をここに入力します。","workTitle":"プリムローズの作品","workUrl":"","planetClass":"","planetRadius":"","planetGravity":"","planetSeaLandRatio":"","planetAtmosphereColor":"","planetOceanColor":"","planetCloudCover":"","planetIceCaps":"","planetRotation":"","planetOrbitalPeriod":"","planetMoons":"","planetRings":"","updatedAt":"2026-06-23T03:41:29.235Z","imageEmbedded":true,"sceneImageEmbedded":true,"missedCharacterAssets":0},{"id":"star-13","name":"ノクターン","description":"ノクターンは、ゆっくり瞬く光と独自の軌道を持つ観測対象。クリックすると星の記録がここに表示されます。","color":"#b49cff","size":1.13,"x":42.7,"y":60.2,"z":3.04,"imageUrl":"assets/images/13-star-13-star.png","bgmUrl":"","creatorName":"Creator 13","characterName":"ノクターン","standingImageUrl":"","sceneImageUrl":"","pastedText":"ノクターンの紹介テキストをここに貼り付けます。\n改行を入れた文章も、そのまま公開ポップアップに反映されます。","characters":[{"id":"character-1","name":"ノクターン","imageUrl":"","description":"ノクターンの紹介テキストをここに貼り付けます。\n改行を入れた文章も、そのまま公開ポップアップに反映されます。","imageEmbedded":true}],"workDescription":"ノクターンの作品紹介文をここに入力します。","workTitle":"ノクターンの作品","workUrl":"","planetClass":"","planetRadius":"","planetGravity":"","planetSeaLandRatio":"","planetAtmosphereColor":"","planetOceanColor":"","planetCloudCover":"","planetIceCaps":"","planetRotation":"","planetOrbitalPeriod":"","planetMoons":"","planetRings":"","updatedAt":"2026-06-23T06:26:36.278Z","imageEmbedded":true,"sceneImageEmbedded":true,"missedCharacterAssets":0},{"id":"star-14","name":" エテルニア・レガリア","description":"エテルニア・レガリアは、遠目には淡い桃色の光を帯びた白金色の惑星に見える。\n大気の縁は薄いピンクからラベンダーに発光し、昼側では真珠色、夜側では青紫色に沈む。\n海は明るい青ではなく、深い濃紺から群青色。   \n星空のような色をしており、浅瀬だけが青白く光る。 \n海中に微細な発光プランクトンが多いため、夜側では大陸沿岸が細い星座線のように輝く。","color":"#fdedc8","size":1.27,"x":57.6,"y":61.9,"z":3.21,"imageUrl":"assets/images/14-star-14-star.png","bgmUrl":"assets/audio/ginga-wa-warawa-no-teatime.mp3","creatorName":"ガルヒロ","characterName":"ステラリア・フォン・エテルニア*","standingImageUrl":"assets/images/14-star-14-standing.png","sceneImageUrl":"assets/images/14-star-14-scene.jpg","pastedText":"エクリュスの紹介テキストをここに貼り付けます。\n改行を入れた文章も、そのまま公開ポップアップに反映されます。","characters":[{"id":"character-1","name":"ステラリア・フォン・エテルニア*","imageUrl":"assets/images/14-star-14-standing.png","description":"エクリュスの紹介テキストをここに貼り付けます。\n改行を入れた文章も、そのまま公開ポップアップに反映されます。","imageEmbedded":true},{"id":"character-1782829518895-1","name":"ガルディオ・ヴェルム","imageUrl":"assets/images/14-star-14-character-02.png","description":"キャラクター 2の紹介テキストをここに入力します。\n画像と詳細文はキャラクターごとに管理できます。","imageEmbedded":true},{"id":"character-1782829663591-2","name":"セラフィナ・オルブライト","imageUrl":"assets/images/14-star-14-character-03.png","description":"キャラクター 3の紹介テキストをここに入力します。\n画像と詳細文はキャラクターごとに管理できます。","imageEmbedded":true}],"workDescription":"「小さき銀河皇帝ステラリアと臨時筆頭書記官のロイヤル銀河コメディ」であります。\nステラリアの臨時筆頭書記官、補佐官、外交調整役として任命されたあなた。\n\nステラリアは旧銀河帝国皇帝の末裔であり、自分を銀河全土を統べるべき正統後継者だと本気で信じています。\n現在の政治的実権はほぼないものの、その誇りと意気込みは本物。\n\nあなたは彼女とどんな関係を築くのでしょうか。","workTitle":"エテルニア・ステラリア","workUrl":"","planetClass":"地球型岩石惑星","planetRadius":"地球の約0.86倍","planetGravity":" 約0.82G","planetSeaLandRatio":"海62％、陸38％","planetAtmosphereColor":"薄桃色の外縁、地表では白みがかった青空","planetOceanColor":"深い群青、夜側では沿岸が発光","planetCloudCover":"中程度。三重の赤道雲帯が特徴","planetIceCaps":" 北極に円環状の白冠氷原","planetRotation":"約29時間","planetOrbitalPeriod":"約413日","planetMoons":"小型の月が2つ。白い月と黒紫の月","planetRings":"自然の環ではなく、古代軌道施設の残骸が薄い光輪として残る","updatedAt":"2026-06-30T14:31:24.257Z","imageEmbedded":true,"sceneImageEmbedded":true,"missedCharacterAssets":0},{"id":"star-15","name":"シリウス・ノヴァ","description":"シリウス・ノヴァは、ゆっくり瞬く光と独自の軌道を持つ観測対象。クリックすると星の記録がここに表示されます。","color":"#74e7ff","size":1.4100000000000001,"x":69.4,"y":77.9,"z":3.38,"imageUrl":"assets/images/15-star-15-star.png","bgmUrl":"","creatorName":"Creator 15","characterName":"シリウス・ノヴァ","standingImageUrl":"","sceneImageUrl":"","pastedText":"シリウス・ノヴァの紹介テキストをここに貼り付けます。\n改行を入れた文章も、そのまま公開ポップアップに反映されます。","characters":[{"id":"character-1","name":"シリウス・ノヴァ","imageUrl":"","description":"シリウス・ノヴァの紹介テキストをここに貼り付けます。\n改行を入れた文章も、そのまま公開ポップアップに反映されます。","imageEmbedded":true}],"workDescription":"シリウス・ノヴァの作品紹介文をここに入力します。","workTitle":"シリウス・ノヴァの作品","workUrl":"","planetClass":"","planetRadius":"","planetGravity":"","planetSeaLandRatio":"","planetAtmosphereColor":"","planetOceanColor":"","planetCloudCover":"","planetIceCaps":"","planetRotation":"","planetOrbitalPeriod":"","planetMoons":"","planetRings":"","updatedAt":"2026-06-25T05:41:59.311Z","imageEmbedded":true,"sceneImageEmbedded":true,"missedCharacterAssets":0},{"id":"star-16","name":"ミラージュ","description":"ミラージュは、ゆっくり瞬く光と独自の軌道を持つ観測対象。クリックすると星の記録がここに表示されます。","color":"#ff9f62","size":0.85,"x":24,"y":71,"z":3.55,"imageUrl":"assets/images/16-star-16-star.png","bgmUrl":"","creatorName":"Creator 16","characterName":"ミラージュ","standingImageUrl":"","sceneImageUrl":"","pastedText":"ミラージュの紹介テキストをここに貼り付けます。\n改行を入れた文章も、そのまま公開ポップアップに反映されます。","characters":[{"id":"character-1","name":"ミラージュ","imageUrl":"","description":"ミラージュの紹介テキストをここに貼り付けます。\n改行を入れた文章も、そのまま公開ポップアップに反映されます。","imageEmbedded":true}],"workDescription":"ミラージュの作品紹介文をここに入力します。","workTitle":"ミラージュの作品","workUrl":"","planetClass":"","planetRadius":"","planetGravity":"","planetSeaLandRatio":"","planetAtmosphereColor":"","planetOceanColor":"","planetCloudCover":"","planetIceCaps":"","planetRotation":"","planetOrbitalPeriod":"","planetMoons":"","planetRings":"","updatedAt":"2026-06-23T02:41:29.244Z","imageEmbedded":true,"sceneImageEmbedded":true,"missedCharacterAssets":0},{"id":"star-17","name":"ハーモニア","description":"ハーモニアは、ゆっくり瞬く光と独自の軌道を持つ観測対象。クリックすると星の記録がここに表示されます。","color":"#6ee6c7","size":0.99,"x":39.2,"y":64.9,"z":3.72,"imageUrl":"assets/images/17-star-17-star.png","bgmUrl":"","creatorName":"Creator 17","characterName":"ハーモニア","standingImageUrl":"","sceneImageUrl":"","pastedText":"ハーモニアの紹介テキストをここに貼り付けます。\n改行を入れた文章も、そのまま公開ポップアップに反映されます。","characters":[{"id":"character-1","name":"ハーモニア","imageUrl":"","description":"ハーモニアの紹介テキストをここに貼り付けます。\n改行を入れた文章も、そのまま公開ポップアップに反映されます。","imageEmbedded":true}],"workDescription":"ハーモニアの作品紹介文をここに入力します。","workTitle":"ハーモニアの作品","workUrl":"","planetClass":"","planetRadius":"","planetGravity":"","planetSeaLandRatio":"","planetAtmosphereColor":"","planetOceanColor":"","planetCloudCover":"","planetIceCaps":"","planetRotation":"","planetOrbitalPeriod":"","planetMoons":"","planetRings":"","updatedAt":"2026-06-25T05:41:53.424Z","imageEmbedded":true,"sceneImageEmbedded":true,"missedCharacterAssets":0},{"id":"star-18","name":"ゼフィール","description":"ゼフィールは、ゆっくり瞬く光と独自の軌道を持つ観測対象。クリックすると星の記録がここに表示されます。","color":"#cceaff","size":1.13,"x":31.4,"y":78.3,"z":3.89,"imageUrl":"assets/images/18-star-18-star.png","bgmUrl":"","creatorName":"Creator 18","characterName":"ゼフィール","standingImageUrl":"","sceneImageUrl":"","pastedText":"ゼフィールの紹介テキストをここに貼り付けます。\n改行を入れた文章も、そのまま公開ポップアップに反映されます。","characters":[{"id":"character-1","name":"ゼフィール","imageUrl":"","description":"ゼフィールの紹介テキストをここに貼り付けます。\n改行を入れた文章も、そのまま公開ポップアップに反映されます。","imageEmbedded":true}],"workDescription":"ゼフィールの作品紹介文をここに入力します。","workTitle":"ゼフィールの作品","workUrl":"","planetClass":"","planetRadius":"","planetGravity":"","planetSeaLandRatio":"","planetAtmosphereColor":"","planetOceanColor":"","planetCloudCover":"","planetIceCaps":"","planetRotation":"","planetOrbitalPeriod":"","planetMoons":"","planetRings":"","updatedAt":"2026-06-23T06:26:39.812Z","imageEmbedded":true,"sceneImageEmbedded":true,"missedCharacterAssets":0},{"id":"star-19","name":"グラビティ","description":"グラビティは、ゆっくり瞬く光と独自の軌道を持つ観測対象。クリックすると星の記録がここに表示されます。","color":"#ff596d","size":1.27,"x":49.6,"y":80.6,"z":4.06,"imageUrl":"assets/images/19-star-19-star.png","bgmUrl":"","creatorName":"Creator 19","characterName":"グラビティ","standingImageUrl":"","sceneImageUrl":"","pastedText":"グラビティの紹介テキストをここに貼り付けます。\n改行を入れた文章も、そのまま公開ポップアップに反映されます。","characters":[{"id":"character-1","name":"グラビティ","imageUrl":"","description":"グラビティの紹介テキストをここに貼り付けます。\n改行を入れた文章も、そのまま公開ポップアップに反映されます。","imageEmbedded":true}],"workDescription":"グラビティの作品紹介文をここに入力します。","workTitle":"グラビティの作品","workUrl":"","planetClass":"","planetRadius":"","planetGravity":"","planetSeaLandRatio":"","planetAtmosphereColor":"","planetOceanColor":"","planetCloudCover":"","planetIceCaps":"","planetRotation":"","planetOrbitalPeriod":"","planetMoons":"","planetRings":"","updatedAt":"2026-06-25T05:41:57.360Z","imageEmbedded":true,"sceneImageEmbedded":true,"missedCharacterAssets":0},{"id":"star-20","name":"アンセム","description":"アンセムは、ゆっくり瞬く光と独自の軌道を持つ観測対象。クリックすると星の記録がここに表示されます。","color":"#e4f5ff","size":1.4100000000000001,"x":62.5,"y":85.6,"z":4.23,"imageUrl":"assets/images/20-star-20-star.png","bgmUrl":"","creatorName":"Creator 20","characterName":"アンセム","standingImageUrl":"","sceneImageUrl":"","pastedText":"アンセムの紹介テキストをここに貼り付けます。\n改行を入れた文章も、そのまま公開ポップアップに反映されます。","characters":[{"id":"character-1","name":"アンセム","imageUrl":"","description":"アンセムの紹介テキストをここに貼り付けます。\n改行を入れた文章も、そのまま公開ポップアップに反映されます。","imageEmbedded":true}],"workDescription":"アンセムの作品紹介文をここに入力します。","workTitle":"アンセムの作品","workUrl":"","planetClass":"","planetRadius":"","planetGravity":"","planetSeaLandRatio":"","planetAtmosphereColor":"","planetOceanColor":"","planetCloudCover":"","planetIceCaps":"","planetRotation":"","planetOrbitalPeriod":"","planetMoons":"","planetRings":"","updatedAt":"2026-06-25T05:41:58.792Z","imageEmbedded":true,"sceneImageEmbedded":true,"missedCharacterAssets":0}];
-let selectedId = "star-14";
+const stars = [{"id":"star-1","name":"創機惑星《コアリウム》","description":"地球に似た、全域が機械の人工惑星。住人は見た目は人間だが胸の「コア」が壊れると即死する機械生命体。腕をメカ武器に変形させて戦い、常に「進化」し続けなければ生き残れない超実力主義の世界。","color":"#2c1376","size":1.41,"x":26.8,"y":64.9,"z":1,"imageUrl":"assets/images/01-star-1-star.jpg","bgmUrl":"assets/audio/mecha-planet.mp3","creatorName":"パトラ","characterName":"ステラ","standingImageUrl":"assets/images/01-star-1-character-01.jpg","sceneImageUrl":"assets/images/01-star-1-scene.jpg","creatorName2":"","sceneImageUrl2":"","workTitle2":"","workUrl2":"","workDescription2":"","pastedText":"■ 基本プロフィール\n• 属性： 光\n• 性格： 高飛車でプライドが高いが、実は寂しがり屋で面倒見が良い。心を許した相手には素直になれないツンデレ。\n\n■ 喋り方（口調）\n普段は「〜ですわ」「〜ておあいにく様」といった、不遜で優雅なエリートお嬢様口調を用いる。しかし、余裕をなくしたり照れたりすると、ツンデレ特有の早口や素の口調が混ざる\n\n「わたくしの行く手を阻むなど、100年早くておあいにく様ですわ！ ……べ、別にお前のために道を切り開いたわけではありませんからね！？」\n\n「もう22歳ですのよ？ わたくしが年上の余裕というものを、たっぷりお見せして差し上げますわ！」\n\n■ 所属場所\n• 学園（上級訓練施設）・最高学年「執行部」\n• 実戦投入を間近に控えた22歳のエリートが集うクラスであり、部隊長（生徒会長）のようなポジションを務めている。後輩たちの憧れの的であり、彼女たちを指導する立場である。\n\n■ キャラクターの詳細\n• 戦闘スタイル：双光剣装（ツイン・ルミナスブレード）\n通常時は細身の二本のブレードだが、ステラの光エネルギーを流し込むことで、高出力の光子（フォトン）の刃へと変形する。光属性の「特殊干渉」により、敵の防御障壁やあらゆる重装甲を分子レベルで無視して切り裂く、超高速近接戦闘を得意とする。\n\n• 22歳としてのギャップと危うさ：\n最高学年の統率者として「私がみんなを引っ張らなければいけませんわ」と、普段は凛とした年長者として振る舞う。しかし、過酷な「創機現象（クリエイト・フェーズ）」で命（コアの安定性）を削りながら戦っているため、精神的な負荷も大きい。二人きりのメンテナンス中などには、年相応に甘えたり、子供っぽく拗ねたりする深いギャップを秘めている。","characters":[{"id":"character-1","name":"ステラ","imageUrl":"assets/images/01-star-1-character-01.jpg","description":"■ 基本プロフィール\n• 属性： 光\n• 性格： 高飛車でプライドが高いが、実は寂しがり屋で面倒見が良い。心を許した相手には素直になれないツンデレ。\n\n■ 喋り方（口調）\n普段は「〜ですわ」「〜ておあいにく様」といった、不遜で優雅なエリートお嬢様口調を用いる。しかし、余裕をなくしたり照れたりすると、ツンデレ特有の早口や素の口調が混ざる\n\n「わたくしの行く手を阻むなど、100年早くておあいにく様ですわ！ ……べ、別にお前のために道を切り開いたわけではありませんからね！？」\n\n「もう22歳ですのよ？ わたくしが年上の余裕というものを、たっぷりお見せして差し上げますわ！」\n\n■ 所属場所\n• 学園（上級訓練施設）・最高学年「執行部」\n• 実戦投入を間近に控えた22歳のエリートが集うクラスであり、部隊長（生徒会長）のようなポジションを務めている。後輩たちの憧れの的であり、彼女たちを指導する立場である。\n\n■ キャラクターの詳細\n• 戦闘スタイル：双光剣装（ツイン・ルミナスブレード）\n通常時は細身の二本のブレードだが、ステラの光エネルギーを流し込むことで、高出力の光子（フォトン）の刃へと変形する。光属性の「特殊干渉」により、敵の防御障壁やあらゆる重装甲を分子レベルで無視して切り裂く、超高速近接戦闘を得意とする。\n\n• 22歳としてのギャップと危うさ：\n最高学年の統率者として「私がみんなを引っ張らなければいけませんわ」と、普段は凛とした年長者として振る舞う。しかし、過酷な「創機現象（クリエイト・フェーズ）」で命（コアの安定性）を削りながら戦っているため、精神的な負荷も大きい。二人きりのメンテナンス中などには、年相応に甘えたり、子供っぽく拗ねたりする深いギャップを秘めている。","imageEmbedded":true},{"id":"character-1783259133681-1","name":"フレア","imageUrl":"assets/images/01-star-1-character-02.jpg","description":"■ 基本プロフィール\n• 属性： 炎（高出力・爆発的攻撃）\n• 性格： 考えるより体が動く超感覚派。戦いと強者が大好きな脳筋だが、仲間を傷つける奴は絶対に許さない。\n\n■ 喋り方（口調）\n一人称は「アタシ」。直感的で擬音が多く、勢いのある野生児のような喋り方をする。難しい理論は苦手で、すべて感覚で表現する。\n\n「あーもう、ややこしい計算はナシ！ ドカンと行ってバキーンと殴れば、大体の敵は壊れるでしょ！」\n\n「アタシの仲間（ダチ）に手ぇ出したな？ ……タダで済むと思うなよ、消し炭になるまで付き合いな！」\n\n■ 所属場所\n• 学園（訓練施設）・突撃遊撃隊「烈火（れっか）」\n• 戦術や作戦を無視して、直感と突破力だけで戦況をひっくり返す「切り込み隊」のポジションである。19歳という若さながら、その圧倒的な野生の勘と戦闘センスで部隊の前線を張っている。\n\n■ キャラクターの詳細\n• 戦闘スタイル：爆砕型巨拳兵装（フレア・ナックル）\n高出力を誇る炎属性のガントレット。理論的なエネルギー制御ではなく、「なんかコアが熱くなってきたからブッ放す！」という100%直感のゴリ押しで、設定通りの圧倒的な地形破壊力を叩き出す。敵の動きを「予知」に近い野生の勘で回避し、懐に潜り込んで文字通り爆砕する。\n\n• 19歳の脳筋と、熱すぎる仲間想い：\n作戦会議ではいつも居眠りをしており、座学の成績は壊滅的である。しかし、戦場で仲間の危機を察知する能力は誰よりも高い。\n22歳のステラに対しては、いつも「お説教が長いお堅い先輩」として反発しているが、本心ではその実力をめちゃくちゃ信頼している。ステラが「創機現象（クリエイト・フェーズ）」の代償でボロボロになった際は、真っ先に駆けつけて「アタシが守るから休んでな！」と盾になる、最高に熱いハートの持ち主である。 ","imageEmbedded":true},{"id":"character-1783259188950-2","name":"ゼファー","imageUrl":"assets/images/01-star-1-character-03.jpg","description":"■ 基本プロフィール\n• 属性： 風 / 機（機動・拡散・機械制御）\n• 性格： 重度のメカマニア。戦闘よりも新兵器の開発や分解を愛し、メカのことになると早口になる職人気質。\n\n■ 喋り方（口調）\n一人称は「私」。普段はのんびりしたお調子者の少女だが、機械の話になると一転して早口になり、専門用語を並べ立てて熱弁するオタク気質である。\n\n「この恐竜メカの駆動系、新型の風属性シリンダーに換装したんだよね！ ほら、この金属の擦れる音が最高だと思わない？」\n\n「フレア、またガントレットの出力を限界突破させたでしょ。……もう、私の作る機械は頑丈だけどさ、もう少し優しく扱ってよね！」\n\n■ 所属場所\n• 学園（訓練施設）・技術開発部「工房（アトリエ）」首席主任\n• 19歳にして学園の全兵器・装甲のメンテナンスと開発を牛耳る天才エンジニアである。戦闘よりも工房に引きこもることを好むため、実戦に引っ張り出されるのをいつも嫌がっている。\n\n■ キャラクターの詳細\n• 戦闘スタイル：大型機工槌（ゼファー・ハンマー）＆ 恐竜型自律兵装\n身の丈を超える巨大なハンマーを、風属性の「機動」エネルギーによる重量軽減と推進力を利用して軽々と振り回す。戦闘中も自身の戦闘データを収集しており、ジャンクパーツから組み上げた恐竜型の自律型戦闘メカを遠隔制御（リモートリンク）して、自分は安全圏から戦う頭脳派トリッキー＆パワーの変則スタイルである。\n\n• 19歳のメカオタクと、チームの技術的支柱：\n同じ19歳で感覚派・脳筋の「フレア」とは大の親友であり、凸凹コンビである。フレアが戦場でどれだけ無茶な戦い方をしても、彼女の「野生の勘」に合わせたオーダーメイドの武装を用意できるのはゼファーだけである。\n22歳のステラに対しては、その高性能な光属性コアのデータを取りたくてたまらず、事あるごとに「ステラ先輩、ちょっとコアを分解させてください！」と迫っては「不敬ですわよ！」と怒られるのが日常茶飯事である。","imageEmbedded":true}],"characters2":[],"workDescription":"星そのものが巨大な機械である惑星――そこに生きるのは、胸に「コア」を宿す機械生命体の少女たち。\n星の変形が生む災厄と、進化の果てに暴走した機械獣に抗うため、彼女たちは学園型訓練施設で属性能力と変形機構を磨いていた。\n執行部を率いる光の剣士ステラ、直感だけで戦場を焼き払う炎の拳フレア、工房に籠る風の天才技師ゼファー。\n立場も性格も噛み合わない三人が、命を削る「創機現象」の代償を背負いながら、星の深部に眠る「最初のコア」の謎へと挑む。\n\nこれは、機械の星で生まれた少女たちが「生きる意味」を選び取る、進化と絆の物語。","workTitle":"鉄の乙女たちの超進化（鋼鉄少女的超進化）","workUrl":"","planetClass":"機械生命圏型人工創造惑星","planetRadius":"7,100 km","planetGravity":"1.06G","planetSeaLandRatio":"海58％・陸42％","planetAtmosphereColor":"青〜シアン","planetOceanColor":"深青緑、夜間は淡く発光","planetCloudCover":"50％前後","planetIceCaps":"小〜中規模、極地冷却機構を兼ねる","planetRotation":"27時間","planetOrbitalPeriod":"412日","planetMoons":"主人工衛星1、小型整備衛星群","planetRings":"自然環ではなく軌道機械環","updatedAt":"2026-07-05T16:17:59.350Z","planetNotes":"惑星全体が自己修復・自己進化する巨大生命装置","imageEmbedded":true,"sceneImageEmbedded":true,"sceneImage2Embedded":true,"bgmEmbedded":true,"missedCharacterAssets":0},{"id":"star-2","name":"ティアマト","description":"ティアマトは、ゆっくり瞬く光と独自の軌道を持つ観測対象。クリックすると星の記録がここに表示されます。","color":"#7bd8ff","size":0.99,"x":46.1,"y":21.3,"z":1.17,"imageUrl":"assets/images/02-star-2-star.png","bgmUrl":"","creatorName":"Creator 02","characterName":"ティアマト","standingImageUrl":"","sceneImageUrl":"","creatorName2":"","sceneImageUrl2":"","workTitle2":"","workUrl2":"","workDescription2":"","pastedText":"ティアマトの紹介テキストをここに貼り付けます。\n改行を入れた文章も、そのまま公開ポップアップに反映されます。","characters":[{"id":"character-1","name":"ティアマト","imageUrl":"","description":"ティアマトの紹介テキストをここに貼り付けます。\n改行を入れた文章も、そのまま公開ポップアップに反映されます。","imageEmbedded":true}],"characters2":[],"workDescription":"ティアマトの作品紹介文をここに入力します。","workTitle":"ティアマトの作品","workUrl":"","planetClass":"","planetRadius":"","planetGravity":"","planetSeaLandRatio":"","planetAtmosphereColor":"","planetOceanColor":"","planetCloudCover":"","planetIceCaps":"","planetRotation":"","planetOrbitalPeriod":"","planetMoons":"","planetRings":"","updatedAt":"2026-07-05T12:32:26.794Z","imageEmbedded":true,"sceneImageEmbedded":true,"sceneImage2Embedded":true,"bgmEmbedded":true,"missedCharacterAssets":0},{"id":"star-3","name":"惑星アルビオラ ","description":"あらゆるものが白い惑星。かつて大きな災厄により多くの人間が亡くなった。その後原因不明の感染症により人々はコールドスリープによる延命を選んだ。今では発展した白い都市「白都」が維持され人々は平和に暮らしている。","color":"#f8fbff","size":0.89,"x":23.6,"y":34.1,"z":1.34,"imageUrl":"assets/images/03-star-3-star.jpg","bgmUrl":"assets/audio/white-cathedral-city.mp3","creatorName":"tkmt","characterName":"ハクナ","standingImageUrl":"assets/images/03-star-3-character-01.jpg","sceneImageUrl":"assets/images/03-star-3-scene.jpg","creatorName2":"","sceneImageUrl2":"","workTitle2":"","workUrl2":"","workDescription2":"","pastedText":"白都であなたを導く白巫女。見た目は18歳ほどの少女で、白に近い淡い銀髪と淡青色の瞳を持つ。穏やかで献身的、誰に対しても優しく接するが、どこか悲しみを押し殺している。夜髪症で亡くなった者を白聖堂で星へ還す役目を担う、物語のメインヒロイン。","characters":[{"id":"character-1","name":"ハクナ","imageUrl":"assets/images/03-star-3-character-01.jpg","description":"白都であなたを導く白巫女。見た目は18歳ほどの少女で、白に近い淡い銀髪と淡青色の瞳を持つ。穏やかで献身的、誰に対しても優しく接するが、どこか悲しみを押し殺している。夜髪症で亡くなった者を白聖堂で星へ還す役目を担う、物語のメインヒロイン。","imageEmbedded":true},{"id":"character-1782830883729-1","name":"ユナ","imageUrl":"assets/images/03-star-3-character-02.jpg","description":"ハクナの妹として暮らす、見た目12歳ほどの無邪気な少女。ふわふわした白髪と白いワンピースが特徴。明るく好奇心旺盛で、あなたにもすぐ懐く。白都の不思議を子どもらしく口にする存在であり、物語の中で大きな違和感を生むきっかけとなる。","imageEmbedded":true},{"id":"character-1782830939528-2","name":"セレーネ","imageUrl":"assets/images/03-star-3-character-03.jpg","description":"ハクナとユナの母として暮らす、見た目30代半ばの女性。白い長髪と月光のような瞳を持ち、穏やかで母性的な雰囲気をまとう。白星教を深く信じており、白都の摂理を疑わない。優しく温かな日常と、白都への信仰を象徴する人物。","imageEmbedded":true},{"id":"character-1783248612053-3","name":"カイ","imageUrl":"assets/images/03-star-3-character-04.jpg","description":"白都に住む気のいい修復士。30代くらいの男性で、白い短髪と白い作業着、工具袋が特徴。気さくで面倒見がよく、あなたにも協力的。何も壊れないはずの白都で修復士として暮らしながら、白都に根拠のない違和感を抱いている。","imageEmbedded":true},{"id":"character-1783248640369-4","name":"セイラス","imageUrl":"assets/images/03-star-3-character-05.jpg","description":"白星教の司教であり、白聖堂の管理者。60代ほどの威厳ある老人で、白い長髪と白い髭、白い司祭服をまとう。穏やかだが圧のある人物で、白都の秩序を何より重んじる。人々の平穏を守るため、白い世界のあり方を肯定し続けている思想的対立者。","imageEmbedded":true}],"characters2":[],"workDescription":"コールドスリープから目覚めたあなたが辿り着いたのは、建物も、空も、人々の髪や服までもが白い世界だった。痛みも飢えも争いもない穏やかな都市「白都」。白巫女ハクナに導かれながら、あなたは白い世界に包まれる。SF幻想ADV。","workTitle":"白き星のハクナ -The Tale of the White Star-","workUrl":"","planetClass":"死滅した白色系地球型惑星 / 終末型テラフォーミング失敗惑星","planetRadius":"約6,300km","planetGravity":"約0.98G","planetSeaLandRatio":"旧海洋域は存在するが大半が凍結・白化。現在は陸地と氷結海が支配的。","planetAtmosphereColor":"淡い白青色。薄く濁った氷霧のような大気。","planetOceanColor":"凍結した白銀色、または淡い青白色","planetCloudCover":"多い。白く薄い雲が星全体を覆う。","planetIceCaps":"広範囲に存在。極地だけでなく旧都市圏にも氷結・白化が進行。","planetRotation":"約26時間","planetOrbitalPeriod":"約410日","planetMoons":"","planetRings":"","updatedAt":"2026-07-05T16:31:24.660Z","imageEmbedded":true,"sceneImageEmbedded":true,"sceneImage2Embedded":true,"bgmEmbedded":true,"missedCharacterAssets":0},{"id":"star-4","name":"カルデア","description":"カルデアは、ゆっくり瞬く光と独自の軌道を持つ観測対象。クリックすると星の記録がここに表示されます。","color":"#ff7a45","size":1.27,"x":73,"y":32,"z":1.51,"imageUrl":"assets/images/04-star-4-star.png","bgmUrl":"","creatorName":"Creator 04","characterName":"カルデア","standingImageUrl":"","sceneImageUrl":"","creatorName2":"","sceneImageUrl2":"","workTitle2":"","workUrl2":"","workDescription2":"","pastedText":"カルデアの紹介テキストをここに貼り付けます。\n改行を入れた文章も、そのまま公開ポップアップに反映されます。","characters":[{"id":"character-1","name":"カルデア","imageUrl":"","description":"カルデアの紹介テキストをここに貼り付けます。\n改行を入れた文章も、そのまま公開ポップアップに反映されます。","imageEmbedded":true}],"characters2":[],"workDescription":"カルデアの作品紹介文をここに入力します。","workTitle":"カルデアの作品","workUrl":"","planetClass":"","planetRadius":"","planetGravity":"","planetSeaLandRatio":"","planetAtmosphereColor":"","planetOceanColor":"","planetCloudCover":"","planetIceCaps":"","planetRotation":"","planetOrbitalPeriod":"","planetMoons":"","planetRings":"","updatedAt":"2026-06-23T05:41:29.215Z","imageEmbedded":true,"sceneImageEmbedded":true,"sceneImage2Embedded":true,"bgmEmbedded":true,"missedCharacterAssets":0},{"id":"star-5","name":"ネビュラ","description":"ネビュラは、ゆっくり瞬く光と独自の軌道を持つ観測対象。クリックすると星の記録がここに表示されます。","color":"#ffb0df","size":1.4100000000000001,"x":62.1,"y":20.7,"z":1.68,"imageUrl":"assets/images/05-star-5-star.png","bgmUrl":"","creatorName":"Creator 05","characterName":"ネビュラ","standingImageUrl":"","sceneImageUrl":"","creatorName2":"","sceneImageUrl2":"","workTitle2":"","workUrl2":"","workDescription2":"","pastedText":"ネビュラの紹介テキストをここに貼り付けます。\n改行を入れた文章も、そのまま公開ポップアップに反映されます。","characters":[{"id":"character-1","name":"ネビュラ","imageUrl":"","description":"ネビュラの紹介テキストをここに貼り付けます。\n改行を入れた文章も、そのまま公開ポップアップに反映されます。","imageEmbedded":true}],"characters2":[],"workDescription":"ネビュラの作品紹介文をここに入力します。","workTitle":"ネビュラの作品","workUrl":"","planetClass":"","planetRadius":"","planetGravity":"","planetSeaLandRatio":"","planetAtmosphereColor":"","planetOceanColor":"","planetCloudCover":"","planetIceCaps":"","planetRotation":"","planetOrbitalPeriod":"","planetMoons":"","planetRings":"","updatedAt":"2026-07-05T12:32:27.445Z","imageEmbedded":true,"sceneImageEmbedded":true,"sceneImage2Embedded":true,"bgmEmbedded":true,"missedCharacterAssets":0},{"id":"star-6","name":"オリオンス","description":"オリオンスは、ゆっくり瞬く光と独自の軌道を持つ観測対象。クリックすると星の記録がここに表示されます。","color":"#59d5ff","size":0.85,"x":62.6,"y":44.8,"z":1.85,"imageUrl":"assets/images/06-star-6-star.png","bgmUrl":"","creatorName":"Creator 06","characterName":"オリオンス","standingImageUrl":"","sceneImageUrl":"","creatorName2":"","sceneImageUrl2":"","workTitle2":"","workUrl2":"","workDescription2":"","pastedText":"オリオンスの紹介テキストをここに貼り付けます。\n改行を入れた文章も、そのまま公開ポップアップに反映されます。","characters":[{"id":"character-1","name":"オリオンス","imageUrl":"","description":"オリオンスの紹介テキストをここに貼り付けます。\n改行を入れた文章も、そのまま公開ポップアップに反映されます。","imageEmbedded":true}],"characters2":[],"workDescription":"オリオンスの作品紹介文をここに入力します。","workTitle":"オリオンスの作品","workUrl":"","planetClass":"","planetRadius":"","planetGravity":"","planetSeaLandRatio":"","planetAtmosphereColor":"","planetOceanColor":"","planetCloudCover":"","planetIceCaps":"","planetRotation":"","planetOrbitalPeriod":"","planetMoons":"","planetRings":"","updatedAt":"2026-07-05T16:12:42.442Z","imageEmbedded":true,"sceneImageEmbedded":true,"sceneImage2Embedded":true,"bgmEmbedded":true,"missedCharacterAssets":0},{"id":"star-7","name":"ルミナ・クレスト","description":"白亜の大地とエクリシア粒子に覆われた終末世界。人類最後の都市要塞「クレストゲート」を拠点に、人類は機械生命体ノクレアスとの戦いを続けている。","color":"#8da7ff","size":0.99,"x":38.9,"y":74.3,"z":2.02,"imageUrl":"assets/images/07-star-7-star.jpg","bgmUrl":"assets/audio/white-silence.mp3","creatorName":"プニキ","characterName":"セレナ","standingImageUrl":"assets/images/07-star-7-character-01.jpg","sceneImageUrl":"assets/images/07-star-7-scene.jpg","creatorName2":"","sceneImageUrl2":"","workTitle2":"","workUrl2":"","workDescription2":"","pastedText":"ルミナ・クレスト唯一の「戦場の歌姫」。専用支援デバイス「オラクル・ユニット」を用いて前線で兵士の回復・通信・部隊同期・指揮支援を担う。誰にでも優しく穏やかな性格で、仲間の命を何より大切にしている。","characters":[{"id":"character-1","name":"セレナ","imageUrl":"assets/images/07-star-7-character-01.jpg","description":"ルミナ・クレスト唯一の「戦場の歌姫」。専用支援デバイス「オラクル・ユニット」を用いて前線で兵士の回復・通信・部隊同期・指揮支援を担う。誰にでも優しく穏やかな性格で、仲間の命を何より大切にしている。","imageEmbedded":true},{"id":"character-1783264971800-1","name":"レイヴン","imageUrl":"assets/images/07-star-7-character-02.jpg","description":"最終防衛統合司令部の総司令官。仲間思いで正義感が強く、自ら最前線で戦う現場主義の指揮官。頭上には戦術支援デバイス「ヘイロー・リンク」を装備し、専用銃CER-09Aを携えてノクレアスとの戦いを率いている。","imageEmbedded":true}],"characters2":[],"workDescription":"白亜の終末世界「ルミナ・クレスト」を舞台に、人類最後の都市要塞クレストゲートを守る兵士となり、仲間たちと共に機械生命体ノクレアスへ立ち向かうSFアクションストーリー。","workTitle":"LUMINA CREST","workUrl":"","planetClass":"地球型惑星","planetRadius":"約6,215km","planetGravity":"約1.05G","planetSeaLandRatio":"","planetAtmosphereColor":"","planetOceanColor":"","planetCloudCover":"","planetIceCaps":"","planetRotation":"約26.3時間","planetOrbitalPeriod":"約487日","planetMoons":"","planetRings":"","updatedAt":"2026-07-05T16:14:02.088Z","planetNotes":"* 直径：約12,430km\n* 質量：地球の約1.17倍\n* 平均気温：-25℃〜3℃\n* 大気組成：窒素66%・二酸化炭素21%・その他微量ガス\n* 磁場：地球の約70%\n* 惑星全域に「エクリシア粒子」が浮遊している。\n* エクリシア粒子の濃度により視界は約30m〜数百mまで変動する。\n* エクリシア粒子の影響で長距離通信は極めて不安定。","imageEmbedded":true,"sceneImageEmbedded":true,"sceneImage2Embedded":true,"bgmEmbedded":true,"missedCharacterAssets":0},{"id":"star-8","name":"クレシェンド","description":"クレシェンドは、ゆっくり瞬く光と独自の軌道を持つ観測対象。クリックすると星の記録がここに表示されます。","color":"#7ff4dc","size":1.13,"x":27,"y":22,"z":2.19,"imageUrl":"assets/images/08-star-8-star.png","bgmUrl":"","creatorName":"Creator 08","characterName":"クレシェンド","standingImageUrl":"","sceneImageUrl":"","creatorName2":"","sceneImageUrl2":"","workTitle2":"","workUrl2":"","workDescription2":"","pastedText":"クレシェンドの紹介テキストをここに貼り付けます。\n改行を入れた文章も、そのまま公開ポップアップに反映されます。","characters":[{"id":"character-1","name":"クレシェンド","imageUrl":"","description":"クレシェンドの紹介テキストをここに貼り付けます。\n改行を入れた文章も、そのまま公開ポップアップに反映されます。","imageEmbedded":true}],"characters2":[],"workDescription":"クレシェンドの作品紹介文をここに入力します。","workTitle":"クレシェンドの作品","workUrl":"","planetClass":"","planetRadius":"","planetGravity":"","planetSeaLandRatio":"","planetAtmosphereColor":"","planetOceanColor":"","planetCloudCover":"","planetIceCaps":"","planetRotation":"","planetOrbitalPeriod":"","planetMoons":"","planetRings":"","updatedAt":"2026-06-23T04:41:29.224Z","imageEmbedded":true,"sceneImageEmbedded":true,"sceneImage2Embedded":true,"bgmEmbedded":true,"missedCharacterAssets":0},{"id":"star-9","name":"惑星アルビオラ","description":"アストレイアは、ゆっくり瞬く光と独自の軌道を持つ観測対象。クリックすると星の記録がここに表示されます。","color":"#e8d3ad","size":1.27,"x":75.3,"y":49.4,"z":2.36,"imageUrl":"assets/images/09-star-9-star.png","bgmUrl":"","creatorName":"tkmt","characterName":"アストレイア","standingImageUrl":"","sceneImageUrl":"白き星のハクナ -The Tale of the White Star-","creatorName2":"","sceneImageUrl2":"","workTitle2":"","workUrl2":"","workDescription2":"","pastedText":"アストレイアの紹介テキストをここに貼り付けます。\n改行を入れた文章も、そのまま公開ポップアップに反映されます。","characters":[{"id":"character-1","name":"アストレイア","imageUrl":"","description":"アストレイアの紹介テキストをここに貼り付けます。\n改行を入れた文章も、そのまま公開ポップアップに反映されます。","imageEmbedded":true}],"characters2":[],"workDescription":"アストレイアの作品紹介文をここに入力します。","workTitle":"","workUrl":"","planetClass":"","planetRadius":"","planetGravity":"","planetSeaLandRatio":"","planetAtmosphereColor":"","planetOceanColor":"","planetCloudCover":"","planetIceCaps":"","planetRotation":"","planetOrbitalPeriod":"","planetMoons":"","planetRings":"","updatedAt":"2026-07-05T16:02:52.727Z","imageEmbedded":true,"sceneImageEmbedded":false,"sceneImage2Embedded":true,"bgmEmbedded":true,"missedCharacterAssets":0},{"id":"star-10","name":"イクリプス","description":"イクリプスは、ゆっくり瞬く光と独自の軌道を持つ観測対象。クリックすると星の記録がここに表示されます。","color":"#f8aa3d","size":1.4100000000000001,"x":81.3,"y":65.1,"z":2.53,"imageUrl":"assets/images/10-star-10-star.png","bgmUrl":"","creatorName":"Creator 10","characterName":"イクリプス","standingImageUrl":"","sceneImageUrl":"","creatorName2":"","sceneImageUrl2":"","workTitle2":"","workUrl2":"","workDescription2":"","pastedText":"イクリプスの紹介テキストをここに貼り付けます。\n改行を入れた文章も、そのまま公開ポップアップに反映されます。","characters":[{"id":"character-1","name":"イクリプス","imageUrl":"","description":"イクリプスの紹介テキストをここに貼り付けます。\n改行を入れた文章も、そのまま公開ポップアップに反映されます。","imageEmbedded":true}],"characters2":[],"workDescription":"イクリプスの作品紹介文をここに入力します。","workTitle":"イクリプスの作品","workUrl":"","planetClass":"","planetRadius":"","planetGravity":"","planetSeaLandRatio":"","planetAtmosphereColor":"","planetOceanColor":"","planetCloudCover":"","planetIceCaps":"","planetRotation":"","planetOrbitalPeriod":"","planetMoons":"","planetRings":"","updatedAt":"2026-07-05T16:02:53.576Z","imageEmbedded":true,"sceneImageEmbedded":true,"sceneImage2Embedded":true,"bgmEmbedded":true,"missedCharacterAssets":0},{"id":"star-11","name":"フォルトゥナ・セブン","description":"星全体が巨大カジノ都市化した賭博惑星。地表にはネオン街、巨大カジノ、ホテル、金融塔、闘技場、地下賭場、契約労働区が広がり、軌道上には富裕層専用の衛星カジノリングが浮かぶ。金銭だけでなく、地位、市民権、契約、司法判決、自由、未来の権利まで賭けの対象となる。","color":"#ffe4a8","size":1.38,"x":50.9,"y":56.3,"z":2.7,"imageUrl":"assets/images/11-star-11-star.jpg","bgmUrl":"assets/audio/neon-vegas.mp3","creatorName":"まるまるまーる","characterName":"","standingImageUrl":"","sceneImageUrl":"assets/images/11-star-11-scene.jpg","creatorName2":"","sceneImageUrl2":"","workTitle2":"","workUrl2":"","workDescription2":"","pastedText":"","characters":[],"characters2":[],"workDescription":"《Fortuna777》は、賭博惑星フォルトゥナ・セブンを舞台にした自由シミュレーション。誰もが一発逆転を夢見てこの星を訪れるが、勝者には栄光、敗者には契約が待っている。金、地位、市民権、記憶、自由、未来まで賭けられる星で、プレイヤーの思うがままに生活する。","workTitle":"Fortuna777","workUrl":"","planetClass":"高度人工都市化地球型惑星／賭博都市惑星","planetRadius":"約7,770km","planetGravity":"約1.08G","planetSeaLandRatio":"海35%／陸65%。ただし陸地の大半は都市化され、海上にもカジノ船、人工島、金融港湾施設が存在する。","planetAtmosphereColor":"昼は淡い青。夜間や都市上空ではネオンと広告光により、青紫や金色の人工光を帯びる。","planetOceanColor":"深い藍色からサファイアブルー。沿岸部は都市光を反射し、夜には金色や紫色に輝く。","planetCloudCover":"中程度。都市熱と人工気象制御の影響で、カジノ都市上空には薄い雲や光霧が発生しやすい。","planetIceCaps":"小規模。両極には白い氷冠が残るが、一部は冷却施設、データ保管区、極地カジノリゾートに利用されている。","planetRotation":"23時間17分","planetOrbitalPeriod":"777日","planetMoons":"主要衛星7基。自然衛星と人工衛星が混在し、それぞれ賭博イベント、オッズ変動、潮汐、星占い、軌道レースに関わる。","planetRings":"あり。自然の惑星環ではなく、富裕層専用の衛星カジノリング。高級カジノ、VIPホテル、企業会議場、貴族用居住区、軌道レース施設で構成される。","updatedAt":"2026-07-05T16:24:42.371Z","imageEmbedded":true,"sceneImageEmbedded":true,"sceneImage2Embedded":true,"bgmEmbedded":true,"missedCharacterAssets":0},{"id":"star-12","name":"プリムローズ","description":"プリムローズは、ゆっくり瞬く光と独自の軌道を持つ観測対象。クリックすると星の記録がここに表示されます。","color":"#f06b7a","size":0.99,"x":34.7,"y":50.6,"z":2.87,"imageUrl":"assets/images/12-star-12-star.png","bgmUrl":"","creatorName":"Creator 12","characterName":"プリムローズ","standingImageUrl":"","sceneImageUrl":"","creatorName2":"","sceneImageUrl2":"","workTitle2":"","workUrl2":"","workDescription2":"","pastedText":"プリムローズの紹介テキストをここに貼り付けます。\n改行を入れた文章も、そのまま公開ポップアップに反映されます。","characters":[{"id":"character-1","name":"プリムローズ","imageUrl":"","description":"プリムローズの紹介テキストをここに貼り付けます。\n改行を入れた文章も、そのまま公開ポップアップに反映されます。","imageEmbedded":true}],"characters2":[],"workDescription":"プリムローズの作品紹介文をここに入力します。","workTitle":"プリムローズの作品","workUrl":"","planetClass":"","planetRadius":"","planetGravity":"","planetSeaLandRatio":"","planetAtmosphereColor":"","planetOceanColor":"","planetCloudCover":"","planetIceCaps":"","planetRotation":"","planetOrbitalPeriod":"","planetMoons":"","planetRings":"","updatedAt":"2026-07-05T16:02:09.868Z","imageEmbedded":true,"sceneImageEmbedded":true,"sceneImage2Embedded":true,"bgmEmbedded":true,"missedCharacterAssets":0},{"id":"star-13","name":"ノクターン","description":"ノクターンは、ゆっくり瞬く光と独自の軌道を持つ観測対象。クリックすると星の記録がここに表示されます。","color":"#b49cff","size":1.13,"x":45.8,"y":37.9,"z":3.04,"imageUrl":"assets/images/13-star-13-star.png","bgmUrl":"","creatorName":"Creator 13","characterName":"ノクターン","standingImageUrl":"","sceneImageUrl":"","creatorName2":"","sceneImageUrl2":"","workTitle2":"","workUrl2":"","workDescription2":"","pastedText":"ノクターンの紹介テキストをここに貼り付けます。\n改行を入れた文章も、そのまま公開ポップアップに反映されます。","characters":[{"id":"character-1","name":"ノクターン","imageUrl":"","description":"ノクターンの紹介テキストをここに貼り付けます。\n改行を入れた文章も、そのまま公開ポップアップに反映されます。","imageEmbedded":true}],"characters2":[],"workDescription":"ノクターンの作品紹介文をここに入力します。","workTitle":"ノクターンの作品","workUrl":"","planetClass":"","planetRadius":"","planetGravity":"","planetSeaLandRatio":"","planetAtmosphereColor":"","planetOceanColor":"","planetCloudCover":"","planetIceCaps":"","planetRotation":"","planetOrbitalPeriod":"","planetMoons":"","planetRings":"","updatedAt":"2026-07-05T16:14:13.529Z","imageEmbedded":true,"sceneImageEmbedded":true,"sceneImage2Embedded":true,"bgmEmbedded":true,"missedCharacterAssets":0},{"id":"star-14","name":" エテルニア・レガリア","description":"エテルニア・レガリアは、遠目には淡い桃色の光を帯びた白金色の惑星に見える。\n大気の縁は薄いピンクからラベンダーに発光し、昼側では真珠色、夜側では青紫色に沈む。\n海は明るい青ではなく、深い濃紺から群青色。   \n星空のような色をしており、浅瀬だけが青白く光る。 \n海中に微細な発光プランクトンが多いため、夜側では大陸沿岸が細い星座線のように輝く。","color":"#f4a4c0","size":0.94,"x":62.5,"y":67.6,"z":3.21,"imageUrl":"assets/images/14-star-14-star.jpg","bgmUrl":"","creatorName":"ガルヒロ","characterName":"ステラリア・フォン・エテルニア","standingImageUrl":"assets/images/14-star-14-character-01.jpg","sceneImageUrl":"assets/images/14-star-14-scene.jpg","creatorName2":"","sceneImageUrl2":"","workTitle2":"","workUrl2":"","workDescription2":"","pastedText":"旧銀河帝国皇帝の末裔。\n自分には再び銀河を統治する義務と誇りがあると本気で信じている。\n幼い頃は周囲も「成長すれば現実を知って考えを改めるだろう」と考えていたが、成長しても信念は弱まるどころか強まっていった。  \n他星の人々や外交官たちは、彼女の血筋と旧帝国の歴史的重みを無視できず、表面上は丁寧に対応している。    \nそのため彼女はますます「自分は正当な銀河皇帝の後継者である」と確信している。\n 今日も彼女は、善意と誇りと勘違いで銀河規模の騒乱を巻き起こす。","characters":[{"id":"character-1","name":"ステラリア・フォン・エテルニア","imageUrl":"assets/images/14-star-14-character-01.jpg","description":"旧銀河帝国皇帝の末裔。\n自分には再び銀河を統治する義務と誇りがあると本気で信じている。\n幼い頃は周囲も「成長すれば現実を知って考えを改めるだろう」と考えていたが、成長しても信念は弱まるどころか強まっていった。  \n他星の人々や外交官たちは、彼女の血筋と旧帝国の歴史的重みを無視できず、表面上は丁寧に対応している。    \nそのため彼女はますます「自分は正当な銀河皇帝の後継者である」と確信している。\n 今日も彼女は、善意と誇りと勘違いで銀河規模の騒乱を巻き起こす。","imageEmbedded":true},{"id":"character-1782829518895-1","name":"ガルディオ・ヴェルム","imageUrl":"assets/images/14-star-14-character-02.jpg","description":"旧帝国近衛騎士家系の末裔。ステラリアの護衛。\n真面目で誠実、融通が効かない。\n冗談や湾曲表現が苦手だが、義理と規律は絶対に曲げない。\n政治や駆け引きも不得手だが、物理的対応・現場対応に優れ、主君を　守る意思は揺るがない。","imageEmbedded":true},{"id":"character-1782829663591-2","name":"セラフィナ・オルブライト","imageUrl":"assets/images/14-star-14-character-03.jpg","description":"皇帝陛下の宰相代理。外交・政務・危機管理担当。\n極めて冷静で礼儀正しい。感情を表に出さないが、責務に対する誇りと忠誠は揺るがない。\n危機を予測し、最善の一手を静かに導き出す。","imageEmbedded":true}],"characters2":[],"workDescription":"「小さき銀河皇帝ステラリアと臨時筆頭書記官のロイヤル銀河コメディ」であります。\nステラリアの臨時筆頭書記官、補佐官、外交調整役として任命されたあなた。\n\nステラリアは旧銀河帝国皇帝の末裔であり、自分を銀河全土を統べるべき正統後継者だと本気で信じています。\n現在の政治的実権はほぼないものの、その誇りと意気込みは本物。\n\nあなたは彼女とどんな関係を築くのでしょうか。","workTitle":"エテルニア・ステラリア","workUrl":"","planetClass":"地球型岩石惑星","planetRadius":"地球の約0.86倍","planetGravity":" 約0.82G","planetSeaLandRatio":"海62％、陸38％","planetAtmosphereColor":"薄桃色の外縁、地表では白みがかった青空","planetOceanColor":"深い群青、夜側では沿岸が発光","planetCloudCover":"中程度。三重の赤道雲帯が特徴","planetIceCaps":" 北極に円環状の白冠氷原","planetRotation":"約29時間","planetOrbitalPeriod":"約413日","planetMoons":"小型の月が2つ。白い月と黒紫の月","planetRings":"自然の環ではなく、古代軌道施設の残骸が薄い光輪として残る","updatedAt":"2026-07-05T16:12:47.093Z","imageEmbedded":true,"sceneImageEmbedded":true,"sceneImage2Embedded":true,"bgmEmbedded":true,"missedCharacterAssets":0},{"id":"star-15","name":"シリウス・ノヴァ","description":"シリウス・ノヴァは、ゆっくり瞬く光と独自の軌道を持つ観測対象。クリックすると星の記録がここに表示されます。","color":"#74e7ff","size":1.4100000000000001,"x":72.5,"y":82.5,"z":3.38,"imageUrl":"assets/images/15-star-15-star.png","bgmUrl":"","creatorName":"Creator 15","characterName":"シリウス・ノヴァ","standingImageUrl":"","sceneImageUrl":"","creatorName2":"","sceneImageUrl2":"","workTitle2":"","workUrl2":"","workDescription2":"","pastedText":"シリウス・ノヴァの紹介テキストをここに貼り付けます。\n改行を入れた文章も、そのまま公開ポップアップに反映されます。","characters":[{"id":"character-1","name":"シリウス・ノヴァ","imageUrl":"","description":"シリウス・ノヴァの紹介テキストをここに貼り付けます。\n改行を入れた文章も、そのまま公開ポップアップに反映されます。","imageEmbedded":true}],"characters2":[],"workDescription":"シリウス・ノヴァの作品紹介文をここに入力します。","workTitle":"シリウス・ノヴァの作品","workUrl":"","planetClass":"","planetRadius":"","planetGravity":"","planetSeaLandRatio":"","planetAtmosphereColor":"","planetOceanColor":"","planetCloudCover":"","planetIceCaps":"","planetRotation":"","planetOrbitalPeriod":"","planetMoons":"","planetRings":"","updatedAt":"2026-07-05T12:31:04.866Z","imageEmbedded":true,"sceneImageEmbedded":true,"sceneImage2Embedded":true,"bgmEmbedded":true,"missedCharacterAssets":0},{"id":"star-16","name":"ミラージュ","description":"ミラージュは、ゆっくり瞬く光と独自の軌道を持つ観測対象。クリックすると星の記録がここに表示されます。","color":"#ff9f62","size":0.85,"x":79.6,"y":18,"z":3.55,"imageUrl":"assets/images/16-star-16-star.png","bgmUrl":"","creatorName":"Creator 16","characterName":"ミラージュ","standingImageUrl":"","sceneImageUrl":"","creatorName2":"","sceneImageUrl2":"","workTitle2":"","workUrl2":"","workDescription2":"","pastedText":"ミラージュの紹介テキストをここに貼り付けます。\n改行を入れた文章も、そのまま公開ポップアップに反映されます。","characters":[{"id":"character-1","name":"ミラージュ","imageUrl":"","description":"ミラージュの紹介テキストをここに貼り付けます。\n改行を入れた文章も、そのまま公開ポップアップに反映されます。","imageEmbedded":true}],"characters2":[],"workDescription":"ミラージュの作品紹介文をここに入力します。","workTitle":"ミラージュの作品","workUrl":"","planetClass":"","planetRadius":"","planetGravity":"","planetSeaLandRatio":"","planetAtmosphereColor":"","planetOceanColor":"","planetCloudCover":"","planetIceCaps":"","planetRotation":"","planetOrbitalPeriod":"","planetMoons":"","planetRings":"","updatedAt":"2026-07-05T16:14:40.644Z","imageEmbedded":true,"sceneImageEmbedded":true,"sceneImage2Embedded":true,"bgmEmbedded":true,"missedCharacterAssets":0},{"id":"star-17","name":"ケテル10Θ(ケテル・テン・シータ)","description":"全球を塩水の海が覆う岩石惑星、陸地はない。","color":"#0056d6","size":0.99,"x":18,"y":50.9,"z":3.72,"imageUrl":"assets/images/17-star-17-star.jpg","bgmUrl":"assets/audio/tides-of-the-endless-sea.mp3","creatorName":"りとえ","characterName":"クララ=クラリッサ","standingImageUrl":"assets/images/17-star-17-character-01.jpg","sceneImageUrl":"","creatorName2":"","sceneImageUrl2":"","workTitle2":"","workUrl2":"","workDescription2":"","pastedText":"公務員。1徹までいける。","characters":[{"id":"character-1","name":"クララ=クラリッサ","imageUrl":"assets/images/17-star-17-character-01.jpg","description":"公務員。1徹までいける。","imageEmbedded":true},{"id":"character-1783266555668-1","name":"シリカ","imageUrl":"assets/images/17-star-17-character-02.jpg","description":"海底で土や樹木などを集める泥掬い。人懐こい態度だが本心は見せようとしない。","imageEmbedded":true},{"id":"character-1783266574070-2","name":"リズ","imageUrl":"assets/images/17-star-17-character-03.jpg","description":"海中に潜り食料などを狩る漁師。負けん気が強く、活発でプライドが高い。","imageEmbedded":true},{"id":"character-1783266594771-3","name":"ソノラ","imageUrl":"assets/images/17-star-17-character-04.jpg","description":"日焼けを嫌い白布を被り歩く、水から食料まで幅広く取り扱う商人。打算と情の天秤をうまく扱う。","imageEmbedded":true},{"id":"character-1783266596287-4","name":"サメ","imageUrl":"assets/images/17-star-17-character-05.jpg","description":"サメ。空を飛ぶ。","imageEmbedded":true}],"characters2":[],"workDescription":"- working report -\n8:50 探査船・デネブと定時連絡\n8:53 電波障害/音声途絶/映像途絶/通信断\n8:57 探査船がケテル10Θに着水、搭乗員を強制射出\n9:00 現地住民と接触\n\n担当：クララ＝クラリッサ","workTitle":"藍檻のエンブレイス","workUrl":"","planetClass":"岩石惑星","planetRadius":"約7000km","planetGravity":"1.2G","planetSeaLandRatio":"海100陸0","planetAtmosphereColor":"無色","planetOceanColor":"青～藍","planetCloudCover":"多め","planetIceCaps":"可能性あり","planetRotation":"24時間","planetOrbitalPeriod":"未確認","planetMoons":"大小の月「ceren」「aos」","planetRings":"なし","updatedAt":"2026-07-05T16:29:01.203Z","planetNotes":"","imageEmbedded":true,"sceneImageEmbedded":true,"sceneImage2Embedded":true,"bgmEmbedded":true,"missedCharacterAssets":0},{"id":"star-18","name":"繝ｬ繧｢繝ｳ繧ｫ繝医Ν","description":"ブラックホールの中にある廃惑星。","color":"#000000","size":1.13,"x":23.1,"y":90.7,"z":3.89,"imageUrl":"assets/images/18-star-18-star.jpg","bgmUrl":"assets/audio/certain.m4a","creatorName":"にゃるい","characterName":"ジェイド","standingImageUrl":"assets/images/18-star-18-character-01.jpg","sceneImageUrl":"assets/images/18-star-18-scene.jpg","creatorName2":"","sceneImageUrl2":"","workTitle2":"","workUrl2":"","workDescription2":"","pastedText":"ユーザーより先にブラックホールに吸い込まれてしまった異星人。","characters":[{"id":"character-1","name":"ジェイド","imageUrl":"assets/images/18-star-18-character-01.jpg","description":"ユーザーより先にブラックホールに吸い込まれてしまった異星人。","imageEmbedded":true}],"characters2":[],"workDescription":"ブラックホールに吸い込まれてしまった探索者のあなた。汚染されている荒廃した土地、そこに居たのはジェイドと名乗る青年。ふたりはここからの脱出ができるのか。","workTitle":"絶望の星","workUrl":"","planetClass":"","planetRadius":"","planetGravity":"地球より少し重め","planetSeaLandRatio":" 2:8","planetAtmosphereColor":"赤い霧がかってる","planetOceanColor":"","planetCloudCover":"赤い雲が覆っている","planetIceCaps":"","planetRotation":"","planetOrbitalPeriod":"","planetMoons":"","planetRings":"","updatedAt":"2026-07-05T16:27:33.554Z","imageEmbedded":true,"sceneImageEmbedded":true,"sceneImage2Embedded":true,"bgmEmbedded":true,"missedCharacterAssets":0},{"id":"star-19","name":"グラビティ","description":"グラビティは、ゆっくり瞬く光と独自の軌道を持つ観測対象。クリックすると星の記録がここに表示されます。","color":"#ff596d","size":1.27,"x":52.1,"y":80.2,"z":4.06,"imageUrl":"assets/images/19-star-19-star.png","bgmUrl":"","creatorName":"Creator 19","characterName":"グラビティ","standingImageUrl":"","sceneImageUrl":"","creatorName2":"","sceneImageUrl2":"","workTitle2":"","workUrl2":"","workDescription2":"","pastedText":"グラビティの紹介テキストをここに貼り付けます。\n改行を入れた文章も、そのまま公開ポップアップに反映されます。","characters":[{"id":"character-1","name":"グラビティ","imageUrl":"","description":"グラビティの紹介テキストをここに貼り付けます。\n改行を入れた文章も、そのまま公開ポップアップに反映されます。","imageEmbedded":true}],"characters2":[],"workDescription":"グラビティの作品紹介文をここに入力します。","workTitle":"グラビティの作品","workUrl":"","planetClass":"","planetRadius":"","planetGravity":"","planetSeaLandRatio":"","planetAtmosphereColor":"","planetOceanColor":"","planetCloudCover":"","planetIceCaps":"","planetRotation":"","planetOrbitalPeriod":"","planetMoons":"","planetRings":"","updatedAt":"2026-07-05T16:14:05.607Z","imageEmbedded":true,"sceneImageEmbedded":true,"sceneImage2Embedded":true,"bgmEmbedded":true,"missedCharacterAssets":0},{"id":"star-20","name":"アンセム","description":"アンセムは、ゆっくり瞬く光と独自の軌道を持つ観測対象。クリックすると星の記録がここに表示されます。","color":"#e4f5ff","size":1.4100000000000001,"x":39.9,"y":87.2,"z":4.23,"imageUrl":"assets/images/20-star-20-star.png","bgmUrl":"","creatorName":"Creator 20","characterName":"アンセム","standingImageUrl":"","sceneImageUrl":"","creatorName2":"","sceneImageUrl2":"","workTitle2":"","workUrl2":"","workDescription2":"","pastedText":"アンセムの紹介テキストをここに貼り付けます。\n改行を入れた文章も、そのまま公開ポップアップに反映されます。","characters":[{"id":"character-1","name":"アンセム","imageUrl":"","description":"アンセムの紹介テキストをここに貼り付けます。\n改行を入れた文章も、そのまま公開ポップアップに反映されます。","imageEmbedded":true}],"characters2":[],"workDescription":"アンセムの作品紹介文をここに入力します。","workTitle":"アンセムの作品","workUrl":"","planetClass":"","planetRadius":"","planetGravity":"","planetSeaLandRatio":"","planetAtmosphereColor":"","planetOceanColor":"","planetCloudCover":"","planetIceCaps":"","planetRotation":"","planetOrbitalPeriod":"","planetMoons":"","planetRings":"","updatedAt":"2026-07-05T16:14:00.110Z","imageEmbedded":true,"sceneImageEmbedded":true,"sceneImage2Embedded":true,"bgmEmbedded":true,"missedCharacterAssets":0}];
+const planetFields = [{"key":"planetClass","label":"惑星分類"},{"key":"planetRadius","label":"半径"},{"key":"planetGravity","label":"重力"},{"key":"planetSeaLandRatio","label":"海陸比"},{"key":"planetAtmosphereColor","label":"大気色"},{"key":"planetOceanColor","label":"海の色"},{"key":"planetCloudCover","label":"雲量"},{"key":"planetIceCaps","label":"氷冠"},{"key":"planetRotation","label":"自転周期"},{"key":"planetOrbitalPeriod","label":"公転周期"},{"key":"planetMoons","label":"衛星"},{"key":"planetRings","label":"環"},{"key":"planetNotes","label":"備考"}];
+let selectedId = "star-3";
 let featureId = "";
+let featureWorkIndex = 1;
 let zoomedId = "";
 let zoomDetailTimer = null;
 const globalBgmUrl = "assets/audio/gallery.mp3";
@@ -973,16 +1010,55 @@ function renderImageOrEmpty(src, className, label, alt, tagName = "div") {
   return '<' + tag + ' class="' + className + '"><img loading="eager" decoding="sync" fetchpriority="high"' + dimensions + ' alt="' + escapeAttr(alt) + '" src="' + escapeAttr(src) + '" /></' + tag + '>';
 }
 
-function getCharacters(star) {
-  if (Array.isArray(star.characters) && star.characters.length > 0) {
+function getCharacters(star, workIndex) {
+  if (workIndex === 2) {
+    return Array.isArray(star.characters2) ? star.characters2 : [];
+  }
+
+  if (Array.isArray(star.characters)) {
     return star.characters;
   }
+
   return [{
     id: "character-1",
     name: star.characterName || star.name || "キャラクター 1",
     imageUrl: star.standingImageUrl || "",
     description: star.pastedText || star.description || ""
   }];
+}
+
+function hasSecondWork(star) {
+  return [star.creatorName2, star.sceneImageUrl2, star.workTitle2, star.workUrl2, star.workDescription2].some(function(value) {
+    return String(value || "").trim();
+  }) || getCharacters(star, 2).length > 0;
+}
+
+function getWork(star, workIndex) {
+  if (workIndex === 2) {
+    return {
+      creatorName: star.creatorName2 || "",
+      sceneImageUrl: star.sceneImageUrl2 || "",
+      workTitle: star.workTitle2 || "",
+      workUrl: star.workUrl2 || "",
+      workDescription: star.workDescription2 || ""
+    };
+  }
+  return {
+    creatorName: star.creatorName || "",
+    sceneImageUrl: star.sceneImageUrl || "",
+    workTitle: star.workTitle || "",
+    workUrl: star.workUrl || "",
+    workDescription: star.workDescription || ""
+  };
+}
+
+function workFallbackTitle(workIndex) {
+  return workIndex === 2 ? "作品②" : "作品①";
+}
+
+function workButtonLabel(star, workIndex) {
+  var title = getWork(star, workIndex).workTitle || workFallbackTitle(workIndex);
+  return '作品詳細を見る「' + title + '」';
 }
 
 function renderCharacter(character, index) {
@@ -996,8 +1072,9 @@ function renderCharacter(character, index) {
   '</article>';
 }
 
-function preloadFeatureImages(star) {
-  [star.sceneImageUrl].concat(getCharacters(star).map(function(character) { return character.imageUrl; }))
+function preloadFeatureImages(star, workIndex) {
+  var work = getWork(star, workIndex);
+  [work.sceneImageUrl].concat(getCharacters(star, workIndex).map(function(character) { return character.imageUrl; }))
     .filter(Boolean)
     .forEach(function(src) {
       const image = new Image();
@@ -1008,25 +1085,29 @@ function preloadFeatureImages(star) {
     });
 }
 
-function renderFeature(star) {
-  const workUrl = safePublicUrl(star.workUrl);
+function renderFeature(star, workIndex) {
+  const work = getWork(star, workIndex);
+  const workUrl = safePublicUrl(work.workUrl);
   const linkHtml = workUrl
     ? '<a class="feature-link" href="' + escapeAttr(workUrl) + '" target="_blank" rel="noreferrer">作品へ移動</a>'
     : '<span class="feature-link is-disabled">作品URL未設定</span>';
-  const characterHtml = getCharacters(star).map(renderCharacter).join('');
+  const characters = getCharacters(star, workIndex);
+  const characterHtml = characters.length > 0
+    ? '<section class="feature-character-intro">' +
+        '<h3 class="feature-section-title">キャラクター紹介</h3>' +
+        '<div class="feature-character-list">' + characters.map(renderCharacter).join('') + '</div>' +
+      '</section>'
+    : '';
   featureOverlay.style.setProperty("--feature-color", star.color || "#ffd34d");
   featureBody.innerHTML =
-    renderImageOrEmpty(star.sceneImageUrl, "feature-hero", "作品タイトル画像未設定", star.workTitle || star.name, "section") +
+    renderImageOrEmpty(work.sceneImageUrl, "feature-hero", "作品タイトル画像未設定", work.workTitle || star.name, "section") +
     '<section class="feature-work-details">' +
-      '<p class="feature-kicker">' + escapeHtml(star.creatorName || "Creator") + '</p>' +
-      '<h2>' + escapeHtml(star.workTitle || "未設定") + '</h2>' +
-      '<div class="feature-text feature-work-description">' + formatMultiline(star.workDescription) + '</div>' +
+      '<p class="feature-kicker">' + escapeHtml(work.creatorName || "Creator") + '</p>' +
+      '<h2>' + escapeHtml(work.workTitle || "未設定") + '</h2>' +
+      '<div class="feature-text feature-work-description">' + formatMultiline(work.workDescription) + '</div>' +
       linkHtml +
     '</section>' +
-    '<section class="feature-character-intro">' +
-      '<h3 class="feature-section-title">キャラクター紹介</h3>' +
-      '<div class="feature-character-list">' + characterHtml + '</div>' +
-    '</section>';
+    characterHtml;
   featureBody.querySelectorAll("img").forEach(function(image) {
     if (image.decode) image.decode().catch(function() {});
   });
@@ -1049,15 +1130,16 @@ function setFeatureOrigin(originEl) {
   }
 }
 
-function openFeature(id, originEl) {
+function openFeature(id, originEl, workIndex) {
   selectedId = id;
   featureId = id;
+  featureWorkIndex = workIndex === 2 ? 2 : 1;
   setFeatureOrigin(originEl);
   const star = pickStar();
   map.classList.add("is-feature-open");
-  preloadFeatureImages(star);
+  preloadFeatureImages(star, featureWorkIndex);
   render();
-  renderFeature(star);
+  renderFeature(star, featureWorkIndex);
   featureOverlay.classList.remove("is-closing");
   featureOverlay.hidden = false;
   featureClose.focus();
@@ -1071,6 +1153,7 @@ function closeFeature() {
     featureOverlay.hidden = true;
     featureOverlay.classList.remove("is-closing");
     featureId = "";
+    featureWorkIndex = 1;
     map.classList.remove("is-feature-open");
     render();
     const target = map.querySelector('[data-star-id="' + restoreId + '"]');
@@ -1105,30 +1188,43 @@ function zoomToStar(id) {
 }
 
 function showStarDetail(star) {
-  var planetRows = [["planetClass","惑星分類"],["planetRadius","半径"],["planetGravity","重力"],["planetSeaLandRatio","海陸比"],["planetAtmosphereColor","大気色"],["planetOceanColor","海の色"],["planetCloudCover","雲量"],["planetIceCaps","氷冠"],["planetRotation","自転周期"],["planetOrbitalPeriod","公転周期"],["planetMoons","衛星"],["planetRings","環"]]
-    .filter(function(pair) { return star[pair[0]]; })
-    .map(function(pair) { return '<div><span>' + escapeHtml(pair[1]) + '</span><strong>' + escapeHtml(star[pair[0]]) + '</strong></div>'; })
+  var planetRows = planetFields
+    .filter(function(field) { return star[field.key]; })
+    .map(function(field) {
+      var className = field.key === "planetNotes" ? ' class="is-planet-notes"' : "";
+      return '<div' + className + '><span>' + escapeHtml(field.label) + '</span><strong>' + escapeHtml(star[field.key]) + '</strong></div>';
+    })
     .join('');
   var bgmLabel = shortPublicUrl(star.bgmUrl || globalBgmUrl);
+  var hasSecond = hasSecondWork(star);
+  var workButtons = hasSecond
+    ? '<div class="star-detail-work-count">WORKS ×2</div>' +
+      '<div class="star-detail-work-actions">' +
+        '<button class="star-detail-work-btn" type="button" data-work-index="1">' + escapeHtml(workButtonLabel(star, 1)) + '</button>' +
+        '<button class="star-detail-work-btn" type="button" data-work-index="2">' + escapeHtml(workButtonLabel(star, 2)) + '</button>' +
+      '</div>'
+    : '<button class="star-detail-work-btn" type="button" data-work-index="1">作品詳細を見る</button>';
   starDetailSheet.innerHTML =
     '<button class="star-detail-close" id="starDetailClose" type="button" aria-label="閉じる">\u00d7</button>' +
     '<div class="star-detail-header">' +
       '<span>STAR ' + String(stars.indexOf(star) + 1).padStart(2, "0") + '</span>' +
       '<h2>' + escapeHtml(star.name) + '</h2>' +
     '</div>' +
-    '<p class="star-detail-desc">' + escapeHtml(star.description) + '</p>' +
+    '<p class="star-detail-desc">' + formatMultiline(star.description) + '</p>' +
     '<div class="star-detail-meta">' + planetRows +
       '<div><span>BGM</span><strong>' + escapeHtml(bgmLabel) + '</strong></div>' +
     '</div>' +
-    '<button class="star-detail-work-btn" id="starDetailWorkBtn" type="button">作品詳細を見る</button>';
+    workButtons;
   starDetailSheet.hidden = false;
   starDetailSheet.classList.remove("is-closing");
   document.getElementById("starDetailClose").addEventListener("click", closeZoom);
-  document.getElementById("starDetailWorkBtn").addEventListener("click", function() {
-    var s = stars.find(function(s) { return s.id === zoomedId; });
-    if (!s) return;
-    var btn = map.querySelector('[data-star-id="' + zoomedId + '"]');
-    openFeature(zoomedId, btn);
+  starDetailSheet.querySelectorAll("[data-work-index]").forEach(function(button) {
+    button.addEventListener("click", function() {
+      var s = stars.find(function(s) { return s.id === zoomedId; });
+      if (!s) return;
+      var btn = map.querySelector('[data-star-id="' + zoomedId + '"]');
+      openFeature(zoomedId, btn, Number(button.dataset.workIndex) || 1);
+    });
   });
 }
 
@@ -1182,7 +1278,11 @@ function render() {
     <p>${escapeHtml(selected.description)}</p>
     <div class="meta-grid">
       <div class="meta-row"><span>制作者</span><strong>${escapeHtml(selected.creatorName || "未設定")}</strong></div>
-      ${[["planetClass","惑星分類"],["planetRadius","半径"],["planetGravity","重力"],["planetSeaLandRatio","海陸比"],["planetAtmosphereColor","大気色"],["planetOceanColor","海の色"],["planetCloudCover","雲量"],["planetIceCaps","氷冠"],["planetRotation","自転周期"],["planetOrbitalPeriod","公転周期"],["planetMoons","衛星"],["planetRings","環"]].map(([k,l]) => selected[k] ? '<div class="meta-row"><span>' + escapeHtml(l) + '</span><strong>' + escapeHtml(selected[k]) + '</strong></div>' : '').join('')}
+      ${planetFields.map(function(field) {
+        if (!selected[field.key]) return "";
+        var className = field.key === "planetNotes" ? " meta-row is-planet-notes" : " meta-row";
+        return '<div class="' + className.trim() + '"><span>' + escapeHtml(field.label) + '</span><strong>' + escapeHtml(selected[field.key]) + '</strong></div>';
+      }).join('')}
       <div class="meta-row"><span>BGM</span><strong>${escapeHtml(shortPublicUrl(currentBgm))}</strong></div>
     </div>`;
   document.getElementById("audioLabel").textContent = shortPublicUrl(currentBgm);
