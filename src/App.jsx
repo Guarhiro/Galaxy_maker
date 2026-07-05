@@ -23,10 +23,12 @@ const STORAGE_KEY = "a-plan-star-gallery-demo";
 const IMAGE_DB_NAME = "a-plan-star-gallery-images";
 const IMAGE_STORE_NAME = "images";
 const IMAGE_REF_PREFIX = "indexeddb-image:";
+const AUDIO_REF_PREFIX = "indexeddb-audio:";
 const MAX_STARS = 20;
 const DEFAULT_BACKGROUND_URL = backgroundUrl;
 const DEFAULT_GLOBAL_BGM_URL = "assets/audio/gallery.mp3";
 const PUBLIC_IMAGE_ASSET_DIR = "assets/images";
+const PUBLIC_AUDIO_ASSET_DIR = "assets/audio";
 const PUBLIC_EXPORT_FILENAME = "a-plan-star-gallery-public.zip";
 const PUBLIC_IMAGE_TARGETS = {
   background: { maxSize: 1600, quality: 0.82 },
@@ -127,6 +129,7 @@ const PLANET_FIELDS = [
   { key: "planetOrbitalPeriod", label: "公転周期" },
   { key: "planetMoons", label: "衛星" },
   { key: "planetRings", label: "環" },
+  { key: "planetNotes", label: "備考" },
 ];
 const MAX_CHARACTERS_PER_STAR = 12;
 
@@ -159,7 +162,15 @@ function normalizeCharacter(character, index, fallbackName, fallbackDescription 
 }
 
 function getPrimaryCharacterFields(characters, fallbackName = "", fallbackDescription = "") {
-  const first = characters[0] || makeCharacterDefaults(fallbackName, 0, fallbackDescription);
+  const first = characters[0];
+
+  if (!first) {
+    return {
+      characterName: "",
+      standingImageUrl: "",
+      pastedText: "",
+    };
+  }
 
   return {
     characterName: first.name,
@@ -175,8 +186,7 @@ function normalizeCharacters(star, featureDefaults) {
     imageUrl: star?.standingImageUrl ?? featureDefaults.standingImageUrl,
     description: star?.pastedText ?? featureDefaults.pastedText,
   };
-  const sourceCharacters =
-    Array.isArray(star?.characters) && star.characters.length > 0 ? star.characters : [fallbackCharacter];
+  const sourceCharacters = Array.isArray(star?.characters) ? star.characters : [fallbackCharacter];
 
   return sourceCharacters.slice(0, MAX_CHARACTERS_PER_STAR).map((character, index) =>
     normalizeCharacter(
@@ -188,8 +198,20 @@ function normalizeCharacters(star, featureDefaults) {
   );
 }
 
-function getDisplayCharacters(star) {
-  if (Array.isArray(star?.characters) && star.characters.length > 0) {
+function normalizeCharacters2(star) {
+  if (!Array.isArray(star?.characters2)) return [];
+
+  return star.characters2.slice(0, MAX_CHARACTERS_PER_STAR).map((character, index) =>
+    normalizeCharacter(character, index, `キャラクター ${index + 1}`, ""),
+  );
+}
+
+function getDisplayCharacters(star, workIndex = 1) {
+  if (workIndex === 2) {
+    return Array.isArray(star?.characters2) ? star.characters2 : [];
+  }
+
+  if (Array.isArray(star?.characters)) {
     return star.characters;
   }
 
@@ -208,6 +230,43 @@ function getDisplayCharacters(star) {
   ];
 }
 
+function hasSecondWork(star) {
+  return (
+    [star?.creatorName2, star?.sceneImageUrl2, star?.workTitle2, star?.workUrl2, star?.workDescription2].some((value) =>
+      String(value || "").trim(),
+    ) || getDisplayCharacters(star, 2).length > 0
+  );
+}
+
+function getWorkFields(star, workIndex = 1) {
+  if (workIndex === 2) {
+    return {
+      creatorName: star?.creatorName2 || "",
+      sceneImageUrl: star?.sceneImageUrl2 || "",
+      workTitle: star?.workTitle2 || "",
+      workUrl: star?.workUrl2 || "",
+      workDescription: star?.workDescription2 || "",
+    };
+  }
+
+  return {
+    creatorName: star?.creatorName || "",
+    sceneImageUrl: star?.sceneImageUrl || "",
+    workTitle: star?.workTitle || "",
+    workUrl: star?.workUrl || "",
+    workDescription: star?.workDescription || "",
+  };
+}
+
+function workFallbackTitle(workIndex) {
+  return workIndex === 2 ? "作品②" : "作品①";
+}
+
+function workButtonLabel(star, workIndex = 1) {
+  const title = getWorkFields(star, workIndex).workTitle || workFallbackTitle(workIndex);
+  return `作品詳細を見る「${title}」`;
+}
+
 function makeFeatureDefaults(name, index, description = "") {
   const pastedText =
     index === 0
@@ -219,8 +278,14 @@ function makeFeatureDefaults(name, index, description = "") {
     characterName: name,
     standingImageUrl: "",
     sceneImageUrl: "",
+    creatorName2: "",
+    sceneImageUrl2: "",
+    workTitle2: "",
+    workUrl2: "",
+    workDescription2: "",
     pastedText,
     characters: [makeCharacterDefaults(name, 0, pastedText)],
+    characters2: [],
     workDescription:
       index === 0
         ? "銀河の奥でひらかれる、気高く甘いティータイム。星を選ぶと専用BGMに切り替わります。"
@@ -351,6 +416,7 @@ function normalizeStar(star, index) {
   const description = star?.description || `${name}の説明をここに入力できます。`;
   const featureDefaults = makeFeatureDefaults(name, index, description);
   const characters = normalizeCharacters(star, featureDefaults);
+  const characters2 = normalizeCharacters2(star);
   const primaryCharacter = getPrimaryCharacterFields(
     characters,
     featureDefaults.characterName,
@@ -372,8 +438,14 @@ function normalizeStar(star, index) {
     characterName: primaryCharacter.characterName,
     standingImageUrl: primaryCharacter.standingImageUrl,
     sceneImageUrl: star?.sceneImageUrl ?? featureDefaults.sceneImageUrl,
+    creatorName2: star?.creatorName2 ?? "",
+    sceneImageUrl2: star?.sceneImageUrl2 ?? "",
+    workTitle2: star?.workTitle2 ?? "",
+    workUrl2: star?.workUrl2 ?? "",
+    workDescription2: star?.workDescription2 ?? "",
     pastedText: primaryCharacter.pastedText,
     characters,
+    characters2,
     workDescription: star?.workDescription ?? featureDefaults.workDescription,
     workTitle: star?.workTitle ?? featureDefaults.workTitle,
     workUrl: star?.workUrl ?? featureDefaults.workUrl,
@@ -404,6 +476,7 @@ function formatDate(value) {
 function shortUrl(value) {
   if (!value) return "未設定";
   if (isIndexedDbImageRef(value)) return "ローカル画像";
+  if (isIndexedDbAudioRef(value)) return "アップロードBGM";
   try {
     const url = new URL(value);
     const parts = url.pathname.split("/").filter(Boolean);
@@ -447,16 +520,32 @@ function isIndexedDbImageRef(value) {
   return typeof value === "string" && value.startsWith(IMAGE_REF_PREFIX);
 }
 
+function isIndexedDbAudioRef(value) {
+  return typeof value === "string" && value.startsWith(AUDIO_REF_PREFIX);
+}
+
 function isDataImageUrl(value) {
   return typeof value === "string" && value.startsWith("data:image/");
+}
+
+function isDataAudioUrl(value) {
+  return typeof value === "string" && value.startsWith("data:audio/");
 }
 
 function imageRefFromId(id) {
   return `${IMAGE_REF_PREFIX}${id}`;
 }
 
+function audioRefFromId(id) {
+  return `${AUDIO_REF_PREFIX}${id}`;
+}
+
 function imageIdFromRef(ref) {
   return isIndexedDbImageRef(ref) ? ref.slice(IMAGE_REF_PREFIX.length) : "";
+}
+
+function audioIdFromRef(ref) {
+  return isIndexedDbAudioRef(ref) ? ref.slice(AUDIO_REF_PREFIX.length) : "";
 }
 
 function makeImageStorageId() {
@@ -484,7 +573,7 @@ function openImageDb() {
   });
 }
 
-async function putIndexedDbImage(dataUrl) {
+async function putIndexedDbStoredAsset(dataUrl, refFromId, metadata = {}) {
   if (!dataUrl) return "";
   const db = await openImageDb();
   const id = makeImageStorageId();
@@ -494,32 +583,55 @@ async function putIndexedDbImage(dataUrl) {
     transaction.objectStore(IMAGE_STORE_NAME).put({
       id,
       dataUrl,
+      ...metadata,
       updatedAt: new Date().toISOString(),
     });
     transaction.oncomplete = () => {
       db.close();
-      resolve(imageRefFromId(id));
+      resolve(refFromId(id));
     };
     transaction.onerror = () => {
       db.close();
-      reject(transaction.error || new Error("Failed to store image"));
+      reject(transaction.error || new Error("Failed to store asset"));
     };
   });
 }
 
-async function readIndexedDbImage(ref) {
-  const id = imageIdFromRef(ref);
-  if (!id) return "";
+async function putIndexedDbImage(dataUrl) {
+  return putIndexedDbStoredAsset(dataUrl, imageRefFromId, { kind: "image" });
+}
+
+async function putIndexedDbAudio(dataUrl, metadata = {}) {
+  return putIndexedDbStoredAsset(dataUrl, audioRefFromId, { kind: "audio", ...metadata });
+}
+
+async function readIndexedDbStoredAsset(id) {
+  if (!id) return null;
   const db = await openImageDb();
 
   return new Promise((resolve, reject) => {
     const transaction = db.transaction(IMAGE_STORE_NAME, "readonly");
     const request = transaction.objectStore(IMAGE_STORE_NAME).get(id);
-    request.onsuccess = () => resolve(request.result?.dataUrl || "");
-    request.onerror = () => reject(request.error || new Error("Failed to read image"));
+    request.onsuccess = () => resolve(request.result || null);
+    request.onerror = () => reject(request.error || new Error("Failed to read asset"));
     transaction.oncomplete = () => db.close();
     transaction.onerror = () => db.close();
   });
+}
+
+async function readIndexedDbImage(ref) {
+  const record = await readIndexedDbStoredAsset(imageIdFromRef(ref));
+  return record?.dataUrl || "";
+}
+
+async function readIndexedDbAudio(ref) {
+  const record = await readIndexedDbStoredAsset(audioIdFromRef(ref));
+  const dataUrl = record?.dataUrl || "";
+  return {
+    dataUrl,
+    fileName: record?.fileName || "",
+    mimeType: record?.mimeType || mimeFromDataUrl(dataUrl) || "",
+  };
 }
 
 async function storeFileAsIndexedDbImage(file) {
@@ -529,12 +641,24 @@ async function storeFileAsIndexedDbImage(file) {
   return { ref, dataUrl };
 }
 
+async function storeFileAsIndexedDbAudio(file) {
+  const dataUrl = await readFileAsDataUrl(file);
+  if (!dataUrl) return { ref: "", dataUrl: "", fileName: "", mimeType: "" };
+  const fileName = file?.name || "";
+  const mimeType = file?.type || mimeFromDataUrl(dataUrl) || "";
+  const ref = await putIndexedDbAudio(dataUrl, { fileName, mimeType });
+  return { ref, dataUrl, fileName, mimeType };
+}
+
 function collectImageValues(stars, backgroundImageUrl) {
   const values = [backgroundImageUrl];
   stars.forEach((star) => {
-    values.push(star.imageUrl, star.sceneImageUrl, star.standingImageUrl);
+    values.push(star.imageUrl, star.sceneImageUrl, star.sceneImageUrl2, star.standingImageUrl);
     if (Array.isArray(star.characters)) {
       star.characters.forEach((character) => values.push(character.imageUrl));
+    }
+    if (Array.isArray(star.characters2)) {
+      star.characters2.forEach((character) => values.push(character.imageUrl));
     }
   });
   return values.filter(Boolean);
@@ -546,6 +670,16 @@ function hasDataImageAssets(stars, backgroundImageUrl) {
 
 function collectIndexedDbImageRefs(stars, backgroundImageUrl) {
   return Array.from(new Set(collectImageValues(stars, backgroundImageUrl).filter(isIndexedDbImageRef)));
+}
+
+function collectAudioValues(stars, bgmUrl) {
+  const values = [bgmUrl];
+  stars.forEach((star) => values.push(star.bgmUrl));
+  return values.filter(Boolean);
+}
+
+function collectIndexedDbAudioRefs(stars, bgmUrl) {
+  return Array.from(new Set(collectAudioValues(stars, bgmUrl).filter(isIndexedDbAudioRef)));
 }
 
 async function migrateDataImageAssets(stars, backgroundImageUrl) {
@@ -575,12 +709,22 @@ async function migrateDataImageAssets(stars, backgroundImageUrl) {
             })),
           )
         : star.characters;
+      const characters2 = Array.isArray(star.characters2)
+        ? await Promise.all(
+            star.characters2.map(async (character) => ({
+              ...character,
+              imageUrl: await migrateValue(character.imageUrl),
+            })),
+          )
+        : star.characters2;
       const migratedStar = {
         ...star,
         imageUrl: await migrateValue(star.imageUrl),
         sceneImageUrl: await migrateValue(star.sceneImageUrl),
+        sceneImageUrl2: await migrateValue(star.sceneImageUrl2),
         standingImageUrl: await migrateValue(star.standingImageUrl),
         characters,
+        characters2,
       };
       if (Array.isArray(characters) && characters.length > 0) {
         Object.assign(migratedStar, getPrimaryCharacterFields(characters, star.name, star.description));
@@ -603,8 +747,30 @@ function resolveStoredImageSource(value, imageCache) {
   return value;
 }
 
+function resolveStoredAudioSource(value, audioCache) {
+  if (!value) return "";
+  if (isIndexedDbAudioRef(value)) return audioCache[value]?.dataUrl || "";
+  return value;
+}
+
 function editableImageValue(value) {
   return isIndexedDbImageRef(value) ? "" : value || "";
+}
+
+function bgmDisplayName(value, audioCache) {
+  if (!value) return "未設定";
+  if (isIndexedDbAudioRef(value)) return audioCache[value]?.fileName || "アップロードBGM";
+  return shortUrl(value);
+}
+
+function globalBgmStatus(value, audioCache) {
+  const label = bgmDisplayName(value, audioCache);
+  return value === DEFAULT_GLOBAL_BGM_URL ? `デフォルト: ${label}` : label;
+}
+
+function starBgmStatus(starValue, globalValue, audioCache) {
+  if (starValue) return bgmDisplayName(starValue, audioCache);
+  return `全体BGM: ${globalBgmStatus(globalValue, audioCache)}`;
 }
 
 function readStoredConfig() {
@@ -631,9 +797,75 @@ function extensionFromMime(mimeType) {
   return "png";
 }
 
+function extensionFromAudioMime(mimeType, fileName = "") {
+  const extension = String(fileName || "").split(".").pop()?.toLowerCase();
+  if (["mp3", "m4a", "wav", "ogg", "oga", "opus", "webm", "aac", "flac"].includes(extension)) {
+    return extension;
+  }
+
+  const normalizedMime = String(mimeType || "").toLowerCase().split(";")[0].trim();
+  const subtype = normalizedMime.startsWith("audio/") ? normalizedMime.slice("audio/".length).replace(/^x-/, "") : "";
+  const extensionBySubtype = {
+    mpeg: "mp3",
+    mp3: "mp3",
+    mp4: "m4a",
+    m4a: "m4a",
+    wav: "wav",
+    wave: "wav",
+    ogg: "oga",
+    oga: "oga",
+    opus: "opus",
+    webm: "webm",
+    aac: "aac",
+    flac: "flac",
+  };
+
+  if (extensionBySubtype[subtype]) return extensionBySubtype[subtype];
+
+  const inferred = subtype
+    .replace(/^vnd\./, "")
+    .split(/[.+]/)[0]
+    .replace(/[^a-z0-9-]/g, "");
+  if (/^[a-z0-9][a-z0-9-]{0,15}$/.test(inferred)) return inferred;
+
+  return "mp3";
+}
+
 function mimeFromDataUrl(dataUrl) {
   const match = String(dataUrl || "").match(/^data:([^;,]+)[;,]/);
   return match?.[1] || "";
+}
+
+function fileBaseName(value, fallback) {
+  return sanitizeAssetName(String(value || "").replace(/\.[^.]*$/, ""), fallback);
+}
+
+function uniqueAssetPath(directory, baseName, extension, usedPaths) {
+  let index = 1;
+  let path = `${directory}/${baseName}.${extension}`;
+  while (usedPaths.has(path)) {
+    index += 1;
+    path = `${directory}/${baseName}-${index}.${extension}`;
+  }
+  usedPaths.add(path);
+  return path;
+}
+
+function publicAudioPassThroughPath(value) {
+  if (!value || isIndexedDbAudioRef(value) || isDataAudioUrl(value)) return "";
+  const normalized = String(value).trim().replace(/^\.\/+/, "").split(/[?#]/)[0];
+  return normalized.startsWith(`${PUBLIC_AUDIO_ASSET_DIR}/`) ? normalized : "";
+}
+
+function collectReservedPublicAudioPaths(stars, bgmUrl) {
+  const values = [bgmUrl || DEFAULT_GLOBAL_BGM_URL];
+  stars.forEach((star) => values.push(star.bgmUrl));
+  return values.map(publicAudioPassThroughPath).filter(Boolean);
+}
+
+async function dataUrlToBlob(dataUrl) {
+  const response = await fetch(dataUrl);
+  return response.blob();
 }
 
 async function sourceToDataUrl(source) {
@@ -729,6 +961,48 @@ async function resolvePublicImageAsset(source, baseName, options, cache, files) 
   if (cache.has(source)) return cache.get(source);
 
   const asset = await createPublicImageAsset(source, baseName, options);
+  if (asset.file) files.push(asset.file);
+  cache.set(source, asset);
+  return asset;
+}
+
+async function createPublicAudioAsset(source, baseName, usedPaths) {
+  if (!source) return { src: "", file: null, missed: false };
+  if (!isIndexedDbAudioRef(source) && !isDataAudioUrl(source)) {
+    return { src: source, file: null, missed: false };
+  }
+
+  try {
+    const audio = isIndexedDbAudioRef(source)
+      ? await readIndexedDbAudio(source)
+      : { dataUrl: source, fileName: "", mimeType: mimeFromDataUrl(source) };
+    if (!audio.dataUrl) return { src: "", file: null, missed: true };
+
+    const sourceMime = audio.mimeType || mimeFromDataUrl(audio.dataUrl) || "audio/mpeg";
+    const blob = await dataUrlToBlob(audio.dataUrl);
+    const extension = extensionFromAudioMime(sourceMime, audio.fileName);
+    const assetName = fileBaseName(audio.fileName, baseName);
+    const path = uniqueAssetPath(PUBLIC_AUDIO_ASSET_DIR, assetName, extension, usedPaths);
+    const outputBlob =
+      blob.type || !sourceMime ? blob : new Blob([await blob.arrayBuffer()], { type: sourceMime });
+
+    return {
+      src: path,
+      file: { path, blob: outputBlob },
+      missed: false,
+      originalBytes: Math.ceil((audio.dataUrl.length * 3) / 4),
+      outputBytes: outputBlob.size,
+    };
+  } catch {
+    return { src: "", file: null, missed: true };
+  }
+}
+
+async function resolvePublicAudioAsset(source, baseName, cache, files, usedPaths) {
+  if (!source) return { src: "", missed: false };
+  if (cache.has(source)) return cache.get(source);
+
+  const asset = await createPublicAudioAsset(source, baseName, usedPaths);
   if (asset.file) files.push(asset.file);
   cache.set(source, asset);
   return asset;
@@ -856,32 +1130,56 @@ function downloadBlob(blob, filename) {
 
 async function buildExternalPublicExport({ stars, selectedId, bgmUrl, backgroundImageUrl }) {
   const files = [];
-  const cache = new Map();
+  const imageCache = new Map();
+  const audioCache = new Map();
+  const usedAudioPaths = new Set(collectReservedPublicAudioPaths(stars, bgmUrl));
   const backgroundAsset = await resolvePublicImageAsset(
     backgroundImageUrl || DEFAULT_BACKGROUND_URL,
     "background",
     PUBLIC_IMAGE_TARGETS.background,
-    cache,
+    imageCache,
     files,
+  );
+  const globalBgmAsset = await resolvePublicAudioAsset(
+    bgmUrl || DEFAULT_GLOBAL_BGM_URL,
+    "gallery",
+    audioCache,
+    files,
+    usedAudioPaths,
   );
   const publicStars = await Promise.all(
     stars.map(async (star, index) => {
       const starKey = sanitizeAssetName(star.id || `star-${index + 1}`, `star-${index + 1}`);
-      const sourceCharacters = getDisplayCharacters(star);
-      const [starImage, sceneImage, characters] = await Promise.all([
+      const sourceCharacters = getDisplayCharacters(star, 1);
+      const sourceCharacters2 = getDisplayCharacters(star, 2);
+      const [starImage, sceneImage, sceneImage2, starBgm, characters, characters2] = await Promise.all([
         resolvePublicImageAsset(
           star.imageUrl,
           `${String(index + 1).padStart(2, "0")}-${starKey}-star`,
           PUBLIC_IMAGE_TARGETS.star,
-          cache,
+          imageCache,
           files,
         ),
         resolvePublicImageAsset(
           star.sceneImageUrl,
           `${String(index + 1).padStart(2, "0")}-${starKey}-scene`,
           PUBLIC_IMAGE_TARGETS.scene,
-          cache,
+          imageCache,
           files,
+        ),
+        resolvePublicImageAsset(
+          star.sceneImageUrl2,
+          `${String(index + 1).padStart(2, "0")}-${starKey}-scene2`,
+          PUBLIC_IMAGE_TARGETS.scene,
+          imageCache,
+          files,
+        ),
+        resolvePublicAudioAsset(
+          star.bgmUrl,
+          `${String(index + 1).padStart(2, "0")}-${starKey}-bgm`,
+          audioCache,
+          files,
+          usedAudioPaths,
         ),
         Promise.all(
           sourceCharacters.map(async (character, characterIndex) => {
@@ -889,7 +1187,23 @@ async function buildExternalPublicExport({ stars, selectedId, bgmUrl, background
               character.imageUrl,
               `${String(index + 1).padStart(2, "0")}-${starKey}-character-${String(characterIndex + 1).padStart(2, "0")}`,
               PUBLIC_IMAGE_TARGETS.character,
-              cache,
+              imageCache,
+              files,
+            );
+            return {
+              ...character,
+              imageUrl: characterAsset.src,
+              imageEmbedded: !characterAsset.missed || !character.imageUrl,
+            };
+          }),
+        ),
+        Promise.all(
+          sourceCharacters2.map(async (character, characterIndex) => {
+            const characterAsset = await resolvePublicImageAsset(
+              character.imageUrl,
+              `${String(index + 1).padStart(2, "0")}-${starKey}-character2-${String(characterIndex + 1).padStart(2, "0")}`,
+              PUBLIC_IMAGE_TARGETS.character,
+              imageCache,
               files,
             );
             return {
@@ -904,11 +1218,18 @@ async function buildExternalPublicExport({ stars, selectedId, bgmUrl, background
         ...star,
         ...getPrimaryCharacterFields(characters, star.name, star.description),
         characters,
+        characters2,
         imageUrl: starImage.src,
         sceneImageUrl: sceneImage.src,
+        sceneImageUrl2: sceneImage2.src,
+        bgmUrl: starBgm.src,
         imageEmbedded: !starImage.missed,
         sceneImageEmbedded: !sceneImage.missed || !star.sceneImageUrl,
-        missedCharacterAssets: characters.reduce((total, character) => total + (character.imageEmbedded ? 0 : 1), 0),
+        sceneImage2Embedded: !sceneImage2.missed || !star.sceneImageUrl2,
+        bgmEmbedded: !starBgm.missed || !star.bgmUrl,
+        missedCharacterAssets:
+          characters.reduce((total, character) => total + (character.imageEmbedded ? 0 : 1), 0) +
+          characters2.reduce((total, character) => total + (character.imageEmbedded ? 0 : 1), 0),
       };
     }),
   );
@@ -919,21 +1240,28 @@ async function buildExternalPublicExport({ stars, selectedId, bgmUrl, background
         total +
         (star.imageEmbedded ? 0 : 1) +
         (star.sceneImageEmbedded ? 0 : 1) +
+        (star.sceneImage2Embedded ? 0 : 1) +
+        (star.bgmEmbedded ? 0 : 1) +
         (star.missedCharacterAssets || 0),
       0,
-    );
+    ) +
+    (globalBgmAsset.missed ? 1 : 0);
   const html = buildPublicHtml({
     stars: publicStars,
     selectedId,
-    bgmUrl,
+    bgmUrl: globalBgmAsset.src,
     backgroundDataUrl: backgroundAsset.src,
   });
   const htmlBlob = new Blob([html], { type: "text/html;charset=utf-8" });
   const zipBlob = await createZipBlob([{ path: "index.html", blob: htmlBlob }, ...files]);
+  const imageAssetCount = files.filter((file) => file.path.startsWith(`${PUBLIC_IMAGE_ASSET_DIR}/`)).length;
+  const audioAssetCount = files.filter((file) => file.path.startsWith(`${PUBLIC_AUDIO_ASSET_DIR}/`)).length;
 
   return {
     blob: zipBlob,
     assetCount: files.length,
+    imageAssetCount,
+    audioAssetCount,
     missedAssets,
   };
 }
@@ -1219,6 +1547,7 @@ button { font: inherit; }
   color: rgba(226,239,251,.78);
   font-size: 14px;
   line-height: 1.8;
+  white-space: pre-line;
 }
 .meta-grid {
   display: grid;
@@ -1234,9 +1563,18 @@ button { font: inherit; }
   color: rgba(226,239,251,.78);
   font-size: 13px;
 }
+.meta-row.is-planet-notes {
+  grid-template-columns: 1fr;
+  align-items: start;
+  gap: 6px;
+}
 .meta-row strong {
   color: #f6fbff;
   font-weight: 600;
+}
+.meta-row.is-planet-notes strong {
+  line-height: 1.7;
+  white-space: pre-line;
 }
 .swatch {
   display: inline-block;
@@ -1634,6 +1972,7 @@ button { font: inherit; }
 .star-detail-desc {
   margin: 14px 0 18px; color: rgba(226,239,251,.78);
   font-size: 14px; line-height: 1.8;
+  white-space: pre-line;
 }
 .star-detail-meta {
   display: grid; gap: 10px; padding: 18px 0;
@@ -1645,8 +1984,25 @@ button { font: inherit; }
   display: grid; grid-template-columns: 80px 1fr;
   align-items: center; gap: 12px;
 }
+.star-detail-meta > div.is-planet-notes {
+  grid-template-columns: 1fr;
+  align-items: start;
+  gap: 6px;
+}
 .star-detail-meta span { color: rgba(226,239,251,.64); font-size: 13px; }
 .star-detail-meta strong { color: rgba(247,251,255,.9); font-size: 13px; font-weight: 650; }
+.star-detail-meta > div.is-planet-notes strong {
+  line-height: 1.7;
+  white-space: pre-line;
+}
+.star-detail-work-count {
+  display: inline-flex; align-items: center; justify-content: center;
+  min-height: 28px; width: max-content; margin: 0 0 10px; padding: 0 10px;
+  border: 1px solid rgba(255,211,77,.28); border-radius: 999px;
+  color: #ffd34d; background: rgba(255,211,77,.08);
+  font-size: 12px; font-weight: 850; letter-spacing: .08em;
+}
+.star-detail-work-actions { display: grid; gap: 10px; }
 .star-detail-work-btn {
   display: flex; align-items: center; justify-content: center;
   width: 100%; min-height: 48px; border: none; border-radius: 10px;
@@ -1658,12 +2014,16 @@ button { font: inherit; }
 .star-detail-sheet .star-detail-header,
 .star-detail-sheet .star-detail-desc,
 .star-detail-sheet .star-detail-meta,
+.star-detail-sheet .star-detail-work-count,
+.star-detail-sheet .star-detail-work-actions,
 .star-detail-sheet .star-detail-work-btn {
   animation: featureContentIn 460ms var(--ease-out) both;
 }
 .star-detail-sheet .star-detail-header { animation-delay: 50ms; }
 .star-detail-sheet .star-detail-desc { animation-delay: 130ms; }
 .star-detail-sheet .star-detail-meta { animation-delay: 210ms; }
+.star-detail-sheet .star-detail-work-count,
+.star-detail-sheet .star-detail-work-actions,
 .star-detail-sheet .star-detail-work-btn { animation-delay: 290ms; }
 @keyframes sheetSlideUp {
   from { opacity: 0; transform: translateX(-50%) translateY(100%); }
@@ -1834,8 +2194,10 @@ button { font: inherit; }
 </div>
 <script>
 const stars = ${escapeJsonForHtml(stars)};
+const planetFields = ${escapeJsonForHtml(PLANET_FIELDS)};
 let selectedId = ${JSON.stringify(selectedId)};
 let featureId = "";
+let featureWorkIndex = 1;
 let zoomedId = "";
 let zoomDetailTimer = null;
 const globalBgmUrl = ${JSON.stringify(bgmUrl || "")};
@@ -1921,16 +2283,55 @@ function renderImageOrEmpty(src, className, label, alt, tagName = "div") {
   return '<' + tag + ' class="' + className + '"><img loading="eager" decoding="sync" fetchpriority="high"' + dimensions + ' alt="' + escapeAttr(alt) + '" src="' + escapeAttr(src) + '" /></' + tag + '>';
 }
 
-function getCharacters(star) {
-  if (Array.isArray(star.characters) && star.characters.length > 0) {
+function getCharacters(star, workIndex) {
+  if (workIndex === 2) {
+    return Array.isArray(star.characters2) ? star.characters2 : [];
+  }
+
+  if (Array.isArray(star.characters)) {
     return star.characters;
   }
+
   return [{
     id: "character-1",
     name: star.characterName || star.name || "キャラクター 1",
     imageUrl: star.standingImageUrl || "",
     description: star.pastedText || star.description || ""
   }];
+}
+
+function hasSecondWork(star) {
+  return [star.creatorName2, star.sceneImageUrl2, star.workTitle2, star.workUrl2, star.workDescription2].some(function(value) {
+    return String(value || "").trim();
+  }) || getCharacters(star, 2).length > 0;
+}
+
+function getWork(star, workIndex) {
+  if (workIndex === 2) {
+    return {
+      creatorName: star.creatorName2 || "",
+      sceneImageUrl: star.sceneImageUrl2 || "",
+      workTitle: star.workTitle2 || "",
+      workUrl: star.workUrl2 || "",
+      workDescription: star.workDescription2 || ""
+    };
+  }
+  return {
+    creatorName: star.creatorName || "",
+    sceneImageUrl: star.sceneImageUrl || "",
+    workTitle: star.workTitle || "",
+    workUrl: star.workUrl || "",
+    workDescription: star.workDescription || ""
+  };
+}
+
+function workFallbackTitle(workIndex) {
+  return workIndex === 2 ? "作品②" : "作品①";
+}
+
+function workButtonLabel(star, workIndex) {
+  var title = getWork(star, workIndex).workTitle || workFallbackTitle(workIndex);
+  return '作品詳細を見る「' + title + '」';
 }
 
 function renderCharacter(character, index) {
@@ -1944,8 +2345,9 @@ function renderCharacter(character, index) {
   '</article>';
 }
 
-function preloadFeatureImages(star) {
-  [star.sceneImageUrl].concat(getCharacters(star).map(function(character) { return character.imageUrl; }))
+function preloadFeatureImages(star, workIndex) {
+  var work = getWork(star, workIndex);
+  [work.sceneImageUrl].concat(getCharacters(star, workIndex).map(function(character) { return character.imageUrl; }))
     .filter(Boolean)
     .forEach(function(src) {
       const image = new Image();
@@ -1956,25 +2358,29 @@ function preloadFeatureImages(star) {
     });
 }
 
-function renderFeature(star) {
-  const workUrl = safePublicUrl(star.workUrl);
+function renderFeature(star, workIndex) {
+  const work = getWork(star, workIndex);
+  const workUrl = safePublicUrl(work.workUrl);
   const linkHtml = workUrl
     ? '<a class="feature-link" href="' + escapeAttr(workUrl) + '" target="_blank" rel="noreferrer">作品へ移動</a>'
     : '<span class="feature-link is-disabled">作品URL未設定</span>';
-  const characterHtml = getCharacters(star).map(renderCharacter).join('');
+  const characters = getCharacters(star, workIndex);
+  const characterHtml = characters.length > 0
+    ? '<section class="feature-character-intro">' +
+        '<h3 class="feature-section-title">キャラクター紹介</h3>' +
+        '<div class="feature-character-list">' + characters.map(renderCharacter).join('') + '</div>' +
+      '</section>'
+    : '';
   featureOverlay.style.setProperty("--feature-color", star.color || "#ffd34d");
   featureBody.innerHTML =
-    renderImageOrEmpty(star.sceneImageUrl, "feature-hero", "作品タイトル画像未設定", star.workTitle || star.name, "section") +
+    renderImageOrEmpty(work.sceneImageUrl, "feature-hero", "作品タイトル画像未設定", work.workTitle || star.name, "section") +
     '<section class="feature-work-details">' +
-      '<p class="feature-kicker">' + escapeHtml(star.creatorName || "Creator") + '</p>' +
-      '<h2>' + escapeHtml(star.workTitle || "未設定") + '</h2>' +
-      '<div class="feature-text feature-work-description">' + formatMultiline(star.workDescription) + '</div>' +
+      '<p class="feature-kicker">' + escapeHtml(work.creatorName || "Creator") + '</p>' +
+      '<h2>' + escapeHtml(work.workTitle || "未設定") + '</h2>' +
+      '<div class="feature-text feature-work-description">' + formatMultiline(work.workDescription) + '</div>' +
       linkHtml +
     '</section>' +
-    '<section class="feature-character-intro">' +
-      '<h3 class="feature-section-title">キャラクター紹介</h3>' +
-      '<div class="feature-character-list">' + characterHtml + '</div>' +
-    '</section>';
+    characterHtml;
   featureBody.querySelectorAll("img").forEach(function(image) {
     if (image.decode) image.decode().catch(function() {});
   });
@@ -1997,15 +2403,16 @@ function setFeatureOrigin(originEl) {
   }
 }
 
-function openFeature(id, originEl) {
+function openFeature(id, originEl, workIndex) {
   selectedId = id;
   featureId = id;
+  featureWorkIndex = workIndex === 2 ? 2 : 1;
   setFeatureOrigin(originEl);
   const star = pickStar();
   map.classList.add("is-feature-open");
-  preloadFeatureImages(star);
+  preloadFeatureImages(star, featureWorkIndex);
   render();
-  renderFeature(star);
+  renderFeature(star, featureWorkIndex);
   featureOverlay.classList.remove("is-closing");
   featureOverlay.hidden = false;
   featureClose.focus();
@@ -2019,6 +2426,7 @@ function closeFeature() {
     featureOverlay.hidden = true;
     featureOverlay.classList.remove("is-closing");
     featureId = "";
+    featureWorkIndex = 1;
     map.classList.remove("is-feature-open");
     render();
     const target = map.querySelector('[data-star-id="' + restoreId + '"]');
@@ -2053,30 +2461,43 @@ function zoomToStar(id) {
 }
 
 function showStarDetail(star) {
-  var planetRows = [["planetClass","惑星分類"],["planetRadius","半径"],["planetGravity","重力"],["planetSeaLandRatio","海陸比"],["planetAtmosphereColor","大気色"],["planetOceanColor","海の色"],["planetCloudCover","雲量"],["planetIceCaps","氷冠"],["planetRotation","自転周期"],["planetOrbitalPeriod","公転周期"],["planetMoons","衛星"],["planetRings","環"]]
-    .filter(function(pair) { return star[pair[0]]; })
-    .map(function(pair) { return '<div><span>' + escapeHtml(pair[1]) + '</span><strong>' + escapeHtml(star[pair[0]]) + '</strong></div>'; })
+  var planetRows = planetFields
+    .filter(function(field) { return star[field.key]; })
+    .map(function(field) {
+      var className = field.key === "planetNotes" ? ' class="is-planet-notes"' : "";
+      return '<div' + className + '><span>' + escapeHtml(field.label) + '</span><strong>' + escapeHtml(star[field.key]) + '</strong></div>';
+    })
     .join('');
   var bgmLabel = shortPublicUrl(star.bgmUrl || globalBgmUrl);
+  var hasSecond = hasSecondWork(star);
+  var workButtons = hasSecond
+    ? '<div class="star-detail-work-count">WORKS ×2</div>' +
+      '<div class="star-detail-work-actions">' +
+        '<button class="star-detail-work-btn" type="button" data-work-index="1">' + escapeHtml(workButtonLabel(star, 1)) + '</button>' +
+        '<button class="star-detail-work-btn" type="button" data-work-index="2">' + escapeHtml(workButtonLabel(star, 2)) + '</button>' +
+      '</div>'
+    : '<button class="star-detail-work-btn" type="button" data-work-index="1">作品詳細を見る</button>';
   starDetailSheet.innerHTML =
     '<button class="star-detail-close" id="starDetailClose" type="button" aria-label="閉じる">\\u00d7</button>' +
     '<div class="star-detail-header">' +
       '<span>STAR ' + String(stars.indexOf(star) + 1).padStart(2, "0") + '</span>' +
       '<h2>' + escapeHtml(star.name) + '</h2>' +
     '</div>' +
-    '<p class="star-detail-desc">' + escapeHtml(star.description) + '</p>' +
+    '<p class="star-detail-desc">' + formatMultiline(star.description) + '</p>' +
     '<div class="star-detail-meta">' + planetRows +
       '<div><span>BGM</span><strong>' + escapeHtml(bgmLabel) + '</strong></div>' +
     '</div>' +
-    '<button class="star-detail-work-btn" id="starDetailWorkBtn" type="button">作品詳細を見る</button>';
+    workButtons;
   starDetailSheet.hidden = false;
   starDetailSheet.classList.remove("is-closing");
   document.getElementById("starDetailClose").addEventListener("click", closeZoom);
-  document.getElementById("starDetailWorkBtn").addEventListener("click", function() {
-    var s = stars.find(function(s) { return s.id === zoomedId; });
-    if (!s) return;
-    var btn = map.querySelector('[data-star-id="' + zoomedId + '"]');
-    openFeature(zoomedId, btn);
+  starDetailSheet.querySelectorAll("[data-work-index]").forEach(function(button) {
+    button.addEventListener("click", function() {
+      var s = stars.find(function(s) { return s.id === zoomedId; });
+      if (!s) return;
+      var btn = map.querySelector('[data-star-id="' + zoomedId + '"]');
+      openFeature(zoomedId, btn, Number(button.dataset.workIndex) || 1);
+    });
   });
 }
 
@@ -2130,7 +2551,11 @@ function render() {
     <p>\${escapeHtml(selected.description)}</p>
     <div class="meta-grid">
       <div class="meta-row"><span>制作者</span><strong>\${escapeHtml(selected.creatorName || "未設定")}</strong></div>
-      \${[["planetClass","惑星分類"],["planetRadius","半径"],["planetGravity","重力"],["planetSeaLandRatio","海陸比"],["planetAtmosphereColor","大気色"],["planetOceanColor","海の色"],["planetCloudCover","雲量"],["planetIceCaps","氷冠"],["planetRotation","自転周期"],["planetOrbitalPeriod","公転周期"],["planetMoons","衛星"],["planetRings","環"]].map(([k,l]) => selected[k] ? '<div class="meta-row"><span>' + escapeHtml(l) + '</span><strong>' + escapeHtml(selected[k]) + '</strong></div>' : '').join('')}
+      \${planetFields.map(function(field) {
+        if (!selected[field.key]) return "";
+        var className = field.key === "planetNotes" ? " meta-row is-planet-notes" : " meta-row";
+        return '<div class="' + className.trim() + '"><span>' + escapeHtml(field.label) + '</span><strong>' + escapeHtml(selected[field.key]) + '</strong></div>';
+      }).join('')}
       <div class="meta-row"><span>BGM</span><strong>\${escapeHtml(shortPublicUrl(currentBgm))}</strong></div>
     </div>\`;
   document.getElementById("audioLabel").textContent = shortPublicUrl(currentBgm);
@@ -2231,10 +2656,11 @@ render();
 </html>`;
 }
 
-function StarFeatureModal({ star, origin, onClose, resolveImageSource = (value) => value || "" }) {
-  const workUrl = safeExternalUrl(star.workUrl);
-  const characters = getDisplayCharacters(star);
-  const sceneImageSrc = resolveImageSource(star.sceneImageUrl);
+function StarFeatureModal({ star, origin, onClose, resolveImageSource = (value) => value || "", workIndex = 1 }) {
+  const work = getWorkFields(star, workIndex);
+  const workUrl = safeExternalUrl(work.workUrl);
+  const characters = getDisplayCharacters(star, workIndex);
+  const sceneImageSrc = resolveImageSource(work.sceneImageUrl);
   const modalRef = useRef(null);
   const closeRef = useRef(null);
   const [closing, setClosing] = useState(false);
@@ -2320,7 +2746,7 @@ function StarFeatureModal({ star, origin, onClose, resolveImageSource = (value) 
         <section className="feature-hero">
           {sceneImageSrc ? (
             <img
-              alt={star.workTitle || star.name}
+              alt={work.workTitle || star.name}
               src={sceneImageSrc}
               loading="eager"
               decoding="sync"
@@ -2334,9 +2760,9 @@ function StarFeatureModal({ star, origin, onClose, resolveImageSource = (value) 
         </section>
 
         <section className="feature-work-details">
-          <p className="feature-kicker">{star.creatorName || "Creator"}</p>
-          <h2>{star.workTitle || "未設定"}</h2>
-          <div className="feature-text feature-work-description">{star.workDescription}</div>
+          <p className="feature-kicker">{work.creatorName || "Creator"}</p>
+          <h2>{work.workTitle || "未設定"}</h2>
+          <div className="feature-text feature-work-description">{work.workDescription}</div>
 
           {workUrl ? (
             <a className="feature-link" href={workUrl} target="_blank" rel="noreferrer">
@@ -2347,38 +2773,40 @@ function StarFeatureModal({ star, origin, onClose, resolveImageSource = (value) 
           )}
         </section>
 
-        <section className="feature-character-intro">
-          <h3 className="feature-section-title">キャラクター紹介</h3>
-          <div className="feature-character-list">
-            {characters.map((character, index) => {
-              const characterImageSrc = resolveImageSource(character.imageUrl);
-              return (
-                <article className="feature-character-card" key={character.id || `${character.name}-${index}`}>
-                  <div className="feature-character">
-                    {characterImageSrc ? (
-                      <img
-                        alt={character.name || "キャラクター"}
-                        src={characterImageSrc}
-                        loading="eager"
-                        decoding="sync"
-                        fetchPriority="high"
-                        width="768"
-                        height="768"
-                      />
-                    ) : (
-                      <div className="feature-empty">キャラ画像未設定</div>
-                    )}
-                  </div>
-                  <div className="feature-character-copy">
-                    <span className="feature-character-index">CHARACTER {String(index + 1).padStart(2, "0")}</span>
-                    <strong className="feature-character-name">{character.name || "未設定"}</strong>
-                    <div className="feature-text feature-character-text">{character.description}</div>
-                  </div>
-                </article>
-              );
-            })}
-          </div>
-        </section>
+        {characters.length > 0 ? (
+          <section className="feature-character-intro">
+            <h3 className="feature-section-title">キャラクター紹介</h3>
+            <div className="feature-character-list">
+              {characters.map((character, index) => {
+                const characterImageSrc = resolveImageSource(character.imageUrl);
+                return (
+                  <article className="feature-character-card" key={character.id || `${character.name}-${index}`}>
+                    <div className="feature-character">
+                      {characterImageSrc ? (
+                        <img
+                          alt={character.name || "キャラクター"}
+                          src={characterImageSrc}
+                          loading="eager"
+                          decoding="sync"
+                          fetchPriority="high"
+                          width="768"
+                          height="768"
+                        />
+                      ) : (
+                        <div className="feature-empty">キャラ画像未設定</div>
+                      )}
+                    </div>
+                    <div className="feature-character-copy">
+                      <span className="feature-character-index">CHARACTER {String(index + 1).padStart(2, "0")}</span>
+                      <strong className="feature-character-name">{character.name || "未設定"}</strong>
+                      <div className="feature-text feature-character-text">{character.description}</div>
+                    </div>
+                  </article>
+                );
+              })}
+            </div>
+          </section>
+        ) : null}
       </section>
     </div>
   );
@@ -2410,11 +2838,14 @@ function App() {
   const [isPreviewMode, setIsPreviewMode] = useState(false);
   const [draggingStarId, setDraggingStarId] = useState("");
   const [activePopupStarId, setActivePopupStarId] = useState("");
+  const [activePopupWorkIndex, setActivePopupWorkIndex] = useState(1);
   const [popupOrigin, setPopupOrigin] = useState(null);
   const [zoomedStarId, setZoomedStarId] = useState("");
   const [showStarDetail, setShowStarDetail] = useState(false);
   const [zoomClosing, setZoomClosing] = useState(false);
   const [indexedDbImages, setIndexedDbImages] = useState({});
+  const [indexedDbAudios, setIndexedDbAudios] = useState({});
+  const [isSecondWorkEditorOpen, setIsSecondWorkEditorOpen] = useState(false);
   const audioRef = useRef(null);
   const spaceMapRef = useRef(null);
   const triggerElRef = useRef(null);
@@ -2439,7 +2870,10 @@ function App() {
 
   const activeWorkBgmUrl = activePopupStar?.bgmUrl || zoomedStar?.bgmUrl || "";
   const effectiveBgmUrl = activeWorkBgmUrl || globalBgmUrl;
+  const effectiveBgmPlaybackUrl = resolveStoredAudioSource(effectiveBgmUrl, indexedDbAudios);
   const effectiveBgmIsGallery = !activeWorkBgmUrl;
+  const globalBgmLabel = globalBgmStatus(globalBgmUrl, indexedDbAudios);
+  const selectedBgmLabel = selectedStar ? starBgmStatus(selectedStar.bgmUrl, globalBgmUrl, indexedDbAudios) : "";
   const hasPendingDataImageMigration = useMemo(
     () => hasDataImageAssets(stars, backgroundImageUrl),
     [stars, backgroundImageUrl],
@@ -2524,6 +2958,36 @@ function App() {
   }, [stars, backgroundImageUrl, indexedDbImages]);
 
   useEffect(() => {
+    const missingRefs = collectIndexedDbAudioRefs(stars, globalBgmUrl).filter((ref) => !indexedDbAudios[ref]);
+    if (missingRefs.length === 0) return undefined;
+    let cancelled = false;
+
+    Promise.all(
+      missingRefs.map(async (ref) => {
+        try {
+          return [ref, await readIndexedDbAudio(ref)];
+        } catch {
+          return [ref, null];
+        }
+      }),
+    ).then((entries) => {
+      if (cancelled) return;
+      const loadedAudios = Object.fromEntries(entries.filter(([, value]) => value?.dataUrl));
+      if (Object.keys(loadedAudios).length > 0) {
+        setIndexedDbAudios((current) => ({ ...current, ...loadedAudios }));
+      }
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [stars, globalBgmUrl, indexedDbAudios]);
+
+  useEffect(() => {
+    setIsSecondWorkEditorOpen(false);
+  }, [selectedId]);
+
+  useEffect(() => {
     if (audioRef.current) {
       audioRef.current.volume = volume;
     }
@@ -2533,17 +2997,27 @@ function App() {
     const audio = audioRef.current;
     if (!audio) return;
 
-    if (!effectiveBgmUrl) {
+    const previousUrl = currentAudioUrlRef.current;
+    const previousWasGallery = currentAudioIsGalleryRef.current;
+    const isChangingTrack = previousUrl !== effectiveBgmUrl;
+
+    if (!effectiveBgmUrl || !effectiveBgmPlaybackUrl) {
+      if (
+        effectiveBgmUrl &&
+        isChangingTrack &&
+        previousWasGallery &&
+        previousUrl === globalBgmUrl &&
+        !effectiveBgmIsGallery &&
+        Number.isFinite(audio.currentTime)
+      ) {
+        galleryResumeTimeRef.current = audio.currentTime;
+      }
       audio.pause();
       setIsAudioEnabled(false);
       currentAudioUrlRef.current = "";
       currentAudioIsGalleryRef.current = true;
       return;
     }
-
-    const previousUrl = currentAudioUrlRef.current;
-    const previousWasGallery = currentAudioIsGalleryRef.current;
-    const isChangingTrack = previousUrl !== effectiveBgmUrl;
 
     if (
       isChangingTrack &&
@@ -2556,7 +3030,7 @@ function App() {
     }
 
     if (isChangingTrack) {
-      audio.src = effectiveBgmUrl;
+      audio.src = effectiveBgmPlaybackUrl;
       audio.load();
       currentAudioUrlRef.current = effectiveBgmUrl;
       currentAudioIsGalleryRef.current = effectiveBgmIsGallery;
@@ -2584,11 +3058,12 @@ function App() {
     if (isAudioEnabled) {
       audio.play().catch(() => setIsAudioEnabled(false));
     }
-  }, [effectiveBgmUrl, effectiveBgmIsGallery, globalBgmUrl, isAudioEnabled]);
+  }, [effectiveBgmUrl, effectiveBgmPlaybackUrl, effectiveBgmIsGallery, globalBgmUrl, isAudioEnabled]);
 
   useEffect(() => {
     if (activePopupStarId && !activePopupStar) {
       setActivePopupStarId("");
+      setActivePopupWorkIndex(1);
     }
   }, [activePopupStar, activePopupStarId]);
 
@@ -2613,6 +3088,7 @@ function App() {
         event.preventDefault();
         setZoomClosing(true);
         setActivePopupStarId("");
+        setActivePopupWorkIndex(1);
         setTimeout(() => {
           setZoomedStarId("");
           setShowStarDetail(false);
@@ -2643,48 +3119,50 @@ function App() {
     updateStar(selectedStar.id, patch);
   }
 
-  function commitSelectedCharacters(nextCharacters) {
+  function commitSelectedCharacters(nextCharacters, workIndex = 1) {
     if (!selectedStar) return;
-    const characters = nextCharacters.length
-      ? nextCharacters.slice(0, MAX_CHARACTERS_PER_STAR)
-      : [
-          {
-            ...makeCharacterDefaults(selectedStar.name, 0, selectedStar.description),
-            id: `character-${Date.now()}-0`,
-          },
-        ];
+    const characters = nextCharacters.slice(0, MAX_CHARACTERS_PER_STAR);
+
+    if (workIndex === 2) {
+      updateSelected({ characters2: characters });
+      return;
+    }
+
     updateSelected({
       characters,
       ...getPrimaryCharacterFields(characters, selectedStar.name, selectedStar.description),
     });
   }
 
-  function updateSelectedCharacter(characterId, patch) {
+  function updateSelectedCharacter(characterId, patch, workIndex = 1) {
     if (!selectedStar) return;
     commitSelectedCharacters(
-      getDisplayCharacters(selectedStar).map((character) =>
+      getDisplayCharacters(selectedStar, workIndex).map((character) =>
         character.id === characterId ? { ...character, ...patch } : character,
       ),
+      workIndex,
     );
   }
 
-  function addSelectedCharacter() {
+  function addSelectedCharacter(workIndex = 1) {
     if (!selectedStar) return;
-    const currentCharacters = getDisplayCharacters(selectedStar);
+    const currentCharacters = getDisplayCharacters(selectedStar, workIndex);
     if (currentCharacters.length >= MAX_CHARACTERS_PER_STAR) return;
     const index = currentCharacters.length;
     const character = {
       ...makeCharacterDefaults(`キャラクター ${index + 1}`, index),
-      id: `character-${Date.now()}-${index}`,
+      id: `character${workIndex === 2 ? "2" : ""}-${Date.now()}-${index}`,
     };
-    commitSelectedCharacters([...currentCharacters, character]);
+    commitSelectedCharacters([...currentCharacters, character], workIndex);
   }
 
-  function deleteSelectedCharacter(characterId) {
+  function deleteSelectedCharacter(characterId, workIndex = 1) {
     if (!selectedStar) return;
-    const currentCharacters = getDisplayCharacters(selectedStar);
-    if (currentCharacters.length <= 1) return;
-    commitSelectedCharacters(currentCharacters.filter((character) => character.id !== characterId));
+    const currentCharacters = getDisplayCharacters(selectedStar, workIndex);
+    commitSelectedCharacters(
+      currentCharacters.filter((character) => character.id !== characterId),
+      workIndex,
+    );
   }
 
   async function uploadBackgroundFile(file) {
@@ -2713,13 +3191,13 @@ function App() {
     }
   }
 
-  async function uploadSelectedCharacterImage(characterId, file) {
+  async function uploadSelectedCharacterImage(characterId, file, workIndex = 1) {
     if (!selectedStar || !file) return;
     try {
       const { ref, dataUrl } = await storeFileAsIndexedDbImage(file);
       if (ref) {
         setIndexedDbImages((current) => ({ ...current, [ref]: dataUrl }));
-        updateSelectedCharacter(characterId, { imageUrl: ref });
+        updateSelectedCharacter(characterId, { imageUrl: ref }, workIndex);
       }
     } catch {
       setSaveState("画像保存に失敗");
@@ -2739,10 +3217,88 @@ function App() {
     }
   }
 
+  async function uploadSelectedSceneImage2(file) {
+    if (!selectedStar || !file) return;
+    try {
+      const { ref, dataUrl } = await storeFileAsIndexedDbImage(file);
+      if (ref) {
+        setIndexedDbImages((current) => ({ ...current, [ref]: dataUrl }));
+        updateSelected({ sceneImageUrl2: ref });
+      }
+    } catch {
+      setSaveState("画像保存に失敗");
+    }
+  }
+
+  async function uploadGlobalBgm(file) {
+    if (!file) return;
+    setSaveState("BGM保存中...");
+    try {
+      const audio = await storeFileAsIndexedDbAudio(file);
+      if (audio.ref) {
+        setIndexedDbAudios((current) => ({
+          ...current,
+          [audio.ref]: {
+            dataUrl: audio.dataUrl,
+            fileName: audio.fileName,
+            mimeType: audio.mimeType,
+          },
+        }));
+        setGlobalBgmUrl(audio.ref);
+      }
+    } catch {
+      setSaveState("BGM保存に失敗");
+    }
+  }
+
+  async function uploadSelectedStarBgm(file) {
+    if (!selectedStar || !file) return;
+    setSaveState("BGM保存中...");
+    try {
+      const audio = await storeFileAsIndexedDbAudio(file);
+      if (audio.ref) {
+        setIndexedDbAudios((current) => ({
+          ...current,
+          [audio.ref]: {
+            dataUrl: audio.dataUrl,
+            fileName: audio.fileName,
+            mimeType: audio.mimeType,
+          },
+        }));
+        updateSelected({ bgmUrl: audio.ref });
+      }
+    } catch {
+      setSaveState("BGM保存に失敗");
+    }
+  }
+
+  function clearGlobalBgm() {
+    setGlobalBgmUrl(DEFAULT_GLOBAL_BGM_URL);
+  }
+
+  function clearSelectedStarBgm() {
+    updateSelected({ bgmUrl: "" });
+  }
+
+  function clearSecondWork() {
+    if (!selectedStar) return;
+    if (!window.confirm("作品②の入力内容とキャラクターを削除しますか？")) return;
+    updateSelected({
+      creatorName2: "",
+      sceneImageUrl2: "",
+      workTitle2: "",
+      workUrl2: "",
+      workDescription2: "",
+      characters2: [],
+    });
+    setIsSecondWorkEditorOpen(false);
+  }
+
   function setPreviewMode(nextValue) {
     setIsPreviewMode(nextValue);
     if (!nextValue) {
       setActivePopupStarId("");
+      setActivePopupWorkIndex(1);
       setZoomedStarId("");
       setShowStarDetail(false);
       setZoomClosing(false);
@@ -2752,6 +3308,7 @@ function App() {
   const closeZoomView = useCallback(() => {
     setZoomClosing(true);
     setActivePopupStarId("");
+    setActivePopupWorkIndex(1);
     setTimeout(() => {
       setZoomedStarId("");
       setShowStarDetail(false);
@@ -2759,10 +3316,10 @@ function App() {
     }, 900);
   }, []);
 
-  function openWorkFromZoom() {
+  function openWorkFromZoom(workIndex = 1) {
     if (!zoomedStar) return;
     const node = spaceMapRef.current?.querySelector(`[data-star-id="${zoomedStarId}"]`);
-    openPopup(zoomedStarId, node);
+    openPopup(zoomedStarId, node, workIndex);
   }
 
   function originFromElement(element) {
@@ -2771,9 +3328,10 @@ function App() {
     return { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
   }
 
-  function openPopup(starId, element) {
+  function openPopup(starId, element, workIndex = 1) {
     setPopupOrigin(originFromElement(element));
     triggerElRef.current = element || null;
+    setActivePopupWorkIndex(workIndex === 2 ? 2 : 1);
     setActivePopupStarId(starId);
   }
 
@@ -2785,6 +3343,7 @@ function App() {
   function closePopup() {
     const trigger = triggerElRef.current;
     setActivePopupStarId("");
+    setActivePopupWorkIndex(1);
     setPopupOrigin(null);
     if (trigger && typeof trigger.focus === "function") {
       window.requestAnimationFrame(() => trigger.focus());
@@ -2885,7 +3444,7 @@ function App() {
 
   async function toggleAudio() {
     const audio = audioRef.current;
-    if (!audio || !effectiveBgmUrl) return;
+    if (!audio || !effectiveBgmPlaybackUrl) return;
 
     if (isAudioEnabled) {
       audio.pause();
@@ -2914,8 +3473,8 @@ function App() {
       downloadBlob(publicExport.blob, PUBLIC_EXPORT_FILENAME);
       setExportStatus(
         publicExport.missedAssets > 0
-          ? `公開ZIPを生成しました（画像 ${publicExport.assetCount}件 / 一部URL参照 ${publicExport.missedAssets}件）`
-          : `公開ZIPを生成しました（画像 ${publicExport.assetCount}件）`,
+          ? `公開ZIPを生成しました（画像 ${publicExport.imageAssetCount}件 / 音声 ${publicExport.audioAssetCount}件 / 一部未同梱 ${publicExport.missedAssets}件）`
+          : `公開ZIPを生成しました（画像 ${publicExport.imageAssetCount}件 / 音声 ${publicExport.audioAssetCount}件）`,
       );
       window.setTimeout(() => setExportStatus(""), 3200);
     } catch {
@@ -2929,7 +3488,90 @@ function App() {
     return null;
   }
 
-  const selectedCharacters = getDisplayCharacters(selectedStar);
+  const selectedCharacters = getDisplayCharacters(selectedStar, 1);
+  const selectedCharacters2 = getDisplayCharacters(selectedStar, 2);
+  const showSecondWorkEditor = hasSecondWork(selectedStar) || isSecondWorkEditorOpen;
+  const zoomedHasSecondWork = zoomedStar ? hasSecondWork(zoomedStar) : false;
+
+  function renderCharacterEditor(workIndex = 1) {
+    const characters = workIndex === 2 ? selectedCharacters2 : selectedCharacters;
+    const workLabel = workIndex === 2 ? "作品②" : "作品①";
+
+    return (
+      <div className={`form-section character-section ${workIndex === 2 ? "is-secondary-work" : ""}`}>
+        <div className="form-title form-title-row">
+          <span className="form-title-label">
+            <PencilSimple size={17} />
+            <span>キャラクター（{workLabel}）</span>
+          </span>
+          <button
+            className="mini-action"
+            type="button"
+            onClick={() => addSelectedCharacter(workIndex)}
+            disabled={characters.length >= MAX_CHARACTERS_PER_STAR}
+          >
+            <Plus size={16} weight="bold" />
+            追加
+          </button>
+        </div>
+        <div className="character-editor-list">
+          {characters.length === 0 ? <div className="character-empty">キャラクター未登録</div> : null}
+          {characters.map((character, index) => (
+            <article className="character-editor-card" key={character.id}>
+              <div className="character-editor-head">
+                <strong>CHARACTER {String(index + 1).padStart(2, "0")}</strong>
+                <button
+                  className="character-remove"
+                  type="button"
+                  onClick={() => deleteSelectedCharacter(character.id, workIndex)}
+                  aria-label={`${character.name || "キャラクター"}を削除`}
+                >
+                  <Trash size={16} />
+                </button>
+              </div>
+              <label>
+                キャラ名
+                <input
+                  value={character.name}
+                  onChange={(event) => updateSelectedCharacter(character.id, { name: event.target.value }, workIndex)}
+                  placeholder="キャラクター名"
+                />
+              </label>
+              <label>
+                キャラ画像URL
+                <input
+                  value={editableImageValue(character.imageUrl)}
+                  onChange={(event) => updateSelectedCharacter(character.id, { imageUrl: event.target.value }, workIndex)}
+                  placeholder="キャラ画像のGitHub raw URL"
+                />
+              </label>
+              <div className="file-row">
+                <label className="file-button">
+                  <UploadSimple size={16} />
+                  キャラ画像を選択
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={(event) => uploadSelectedCharacterImage(character.id, event.target.files?.[0], workIndex)}
+                  />
+                </label>
+                <span className="hint-text">このキャラだけに反映</span>
+              </div>
+              <label>
+                キャラ詳細文
+                <textarea
+                  value={character.description}
+                  onChange={(event) => updateSelectedCharacter(character.id, { description: event.target.value }, workIndex)}
+                  rows={5}
+                  placeholder="キャラクター紹介文やキャプションを貼り付け"
+                />
+              </label>
+            </article>
+          ))}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div
@@ -2961,14 +3603,27 @@ function App() {
           </span>
         </div>
 
-        <label className="bgm-field editor-only">
-          <span>BGM GitHub URL</span>
-          <input
-            value={globalBgmUrl}
-            onChange={(event) => setGlobalBgmUrl(event.target.value)}
-            placeholder="https://raw.githubusercontent.com/user/repo/main/ambient.mp3"
-          />
-        </label>
+        <div className="bgm-field editor-only">
+          <span>全体BGM</span>
+          <div className="bgm-actions">
+            <label className="file-button">
+              <UploadSimple size={16} />
+              BGMを選択
+              <input
+                type="file"
+                accept="audio/*"
+                onChange={(event) => {
+                  uploadGlobalBgm(event.target.files?.[0]);
+                  event.target.value = "";
+                }}
+              />
+            </label>
+            <button className="mini-action" type="button" onClick={clearGlobalBgm}>
+              クリア
+            </button>
+          </div>
+          <strong className="bgm-status">現在: {globalBgmLabel}</strong>
+        </div>
 
         <div className="audio-controls">
           <button
@@ -2976,7 +3631,7 @@ function App() {
             type="button"
             onClick={toggleAudio}
             aria-label={isAudioEnabled ? "BGMを停止" : "BGMを再生"}
-            disabled={!effectiveBgmUrl}
+            disabled={!effectiveBgmPlaybackUrl}
           >
             {isAudioEnabled ? <Pause size={19} weight="fill" /> : <Play size={19} weight="fill" />}
           </button>
@@ -3182,7 +3837,7 @@ function App() {
             </div>
             {PLANET_FIELDS.map(({ key, label }) =>
               selectedStar[key] ? (
-                <div key={key}>
+                <div className={key === "planetNotes" ? "is-planet-notes" : undefined} key={key}>
                   <span>{label}</span>
                   <strong>{selectedStar[key]}</strong>
                 </div>
@@ -3190,7 +3845,7 @@ function App() {
             )}
             <div>
               <span>BGM</span>
-              <strong>{shortUrl(selectedStar.bgmUrl || globalBgmUrl)}</strong>
+              <strong>{selectedBgmLabel}</strong>
             </div>
           </div>
 
@@ -3232,14 +3887,27 @@ function App() {
                 </label>
                 <span className="hint-text">公開ZIPでは画像をassetsに分離します</span>
               </div>
-              <label>
-                この星のBGM URL
-                <input
-                  value={selectedStar.bgmUrl}
-                  onChange={(event) => updateSelected({ bgmUrl: event.target.value })}
-                  placeholder="未設定なら全体BGMを使用"
-                />
-              </label>
+              <div className="bgm-upload-field">
+                <span>この星のBGM</span>
+                <div className="bgm-actions">
+                  <label className="file-button">
+                    <UploadSimple size={16} />
+                    BGMを選択
+                    <input
+                      type="file"
+                      accept="audio/*"
+                      onChange={(event) => {
+                        uploadSelectedStarBgm(event.target.files?.[0]);
+                        event.target.value = "";
+                      }}
+                    />
+                  </label>
+                  <button className="mini-action" type="button" onClick={clearSelectedStarBgm}>
+                    クリア
+                  </button>
+                </div>
+                <span className="hint-text">現在: {selectedBgmLabel}</span>
+              </div>
               <div className="form-grid">
                 <label>
                   色
@@ -3345,78 +4013,85 @@ function App() {
               </label>
             </div>
 
-            <div className="form-section character-section">
-              <div className="form-title form-title-row">
-                <span className="form-title-label">
-                  <PencilSimple size={17} />
-                  <span>キャラクター</span>
-                </span>
-                <button
-                  className="mini-action"
-                  type="button"
-                  onClick={addSelectedCharacter}
-                  disabled={selectedCharacters.length >= MAX_CHARACTERS_PER_STAR}
-                >
-                  <Plus size={16} weight="bold" />
-                  追加
-                </button>
-              </div>
-              <div className="character-editor-list">
-                {selectedCharacters.map((character, index) => (
-                  <article className="character-editor-card" key={character.id}>
-                    <div className="character-editor-head">
-                      <strong>CHARACTER {String(index + 1).padStart(2, "0")}</strong>
-                      <button
-                        className="character-remove"
-                        type="button"
-                        onClick={() => deleteSelectedCharacter(character.id)}
-                        disabled={selectedCharacters.length <= 1}
-                        aria-label={`${character.name || "キャラクター"}を削除`}
-                      >
-                        <Trash size={16} />
-                      </button>
-                    </div>
-                    <label>
-                      キャラ名
+            {renderCharacterEditor(1)}
+
+            {showSecondWorkEditor ? (
+              <>
+                <div className="form-section is-secondary-work">
+                  <div className="form-title form-title-row">
+                    <span className="form-title-label">
+                      <ImageSquare size={17} />
+                      <span>作品情報②</span>
+                    </span>
+                    <button className="mini-action is-danger" type="button" onClick={clearSecondWork}>
+                      <Trash size={16} />
+                      作品②を削除
+                    </button>
+                  </div>
+                  <label>
+                    クリエイター名
+                    <input
+                      value={selectedStar.creatorName2}
+                      onChange={(event) => updateSelected({ creatorName2: event.target.value })}
+                      placeholder="例: Guarhiro"
+                    />
+                  </label>
+                  <label>
+                    作品タイトル画像URL
+                    <input
+                      value={editableImageValue(selectedStar.sceneImageUrl2)}
+                      onChange={(event) => updateSelected({ sceneImageUrl2: event.target.value })}
+                      placeholder="作品タイトル画像・キービジュアルURL"
+                    />
+                  </label>
+                  <div className="file-row">
+                    <label className="file-button">
+                      <UploadSimple size={16} />
+                      作品画像を選択
                       <input
-                        value={character.name}
-                        onChange={(event) => updateSelectedCharacter(character.id, { name: event.target.value })}
-                        placeholder="キャラクター名"
+                        type="file"
+                        accept="image/*"
+                        onChange={(event) => uploadSelectedSceneImage2(event.target.files?.[0])}
                       />
                     </label>
+                    <span className="hint-text">2作品目のポップアップ上部</span>
+                  </div>
+                  <div className="form-grid">
                     <label>
-                      キャラ画像URL
+                      作品タイトル
                       <input
-                        value={editableImageValue(character.imageUrl)}
-                        onChange={(event) => updateSelectedCharacter(character.id, { imageUrl: event.target.value })}
-                        placeholder="キャラ画像のGitHub raw URL"
+                        value={selectedStar.workTitle2}
+                        onChange={(event) => updateSelected({ workTitle2: event.target.value })}
+                        placeholder="リンク先作品名"
                       />
                     </label>
-                    <div className="file-row">
-                      <label className="file-button">
-                        <UploadSimple size={16} />
-                        キャラ画像を選択
-                        <input
-                          type="file"
-                          accept="image/*"
-                          onChange={(event) => uploadSelectedCharacterImage(character.id, event.target.files?.[0])}
-                        />
-                      </label>
-                      <span className="hint-text">このキャラだけに反映</span>
-                    </div>
                     <label>
-                      キャラ詳細文
-                      <textarea
-                        value={character.description}
-                        onChange={(event) => updateSelectedCharacter(character.id, { description: event.target.value })}
-                        rows={5}
-                        placeholder="キャラクター紹介文やキャプションを貼り付け"
+                      作品URL
+                      <input
+                        value={selectedStar.workUrl2}
+                        onChange={(event) => updateSelected({ workUrl2: event.target.value })}
+                        placeholder="https://..."
                       />
                     </label>
-                  </article>
-                ))}
-              </div>
-            </div>
+                  </div>
+                  <label>
+                    作品詳細
+                    <textarea
+                      value={selectedStar.workDescription2}
+                      onChange={(event) => updateSelected({ workDescription2: event.target.value })}
+                      rows={4}
+                      placeholder="作品の紹介文・あらすじなど"
+                    />
+                  </label>
+                </div>
+                {renderCharacterEditor(2)}
+              </>
+            ) : (
+              <button className="add-secondary-work" type="button" onClick={() => setIsSecondWorkEditorOpen(true)}>
+                <Plus size={16} weight="bold" />
+                作品②を追加
+              </button>
+            )}
 
             <div className="form-section">
               <div className="form-title">
@@ -3427,11 +4102,20 @@ function App() {
                 {PLANET_FIELDS.map(({ key, label }) => (
                   <label key={key}>
                     {label}
-                    <input
-                      value={selectedStar[key]}
-                      onChange={(event) => updateSelected({ [key]: event.target.value })}
-                      placeholder={label}
-                    />
+                    {key === "planetNotes" ? (
+                      <textarea
+                        value={selectedStar[key]}
+                        onChange={(event) => updateSelected({ [key]: event.target.value })}
+                        placeholder={label}
+                        rows={3}
+                      />
+                    ) : (
+                      <input
+                        value={selectedStar[key]}
+                        onChange={(event) => updateSelected({ [key]: event.target.value })}
+                        placeholder={label}
+                      />
+                    )}
                   </label>
                 ))}
               </div>
@@ -3467,25 +4151,45 @@ function App() {
               <p className="star-detail-desc">{zoomedStar.description}</p>
               <div className="star-detail-meta">
                 {PLANET_FIELDS.filter(({ key }) => zoomedStar[key]).map(({ key, label }) => (
-                  <div key={key}>
+                  <div className={key === "planetNotes" ? "is-planet-notes" : undefined} key={key}>
                     <span>{label}</span>
                     <strong>{zoomedStar[key]}</strong>
                   </div>
                 ))}
                 <div>
                   <span>BGM</span>
-                  <strong>{shortUrl(zoomedStar.bgmUrl || globalBgmUrl)}</strong>
+                  <strong>{starBgmStatus(zoomedStar.bgmUrl, globalBgmUrl, indexedDbAudios)}</strong>
                 </div>
               </div>
-              <button className="star-detail-work-btn" type="button" onClick={openWorkFromZoom}>
-                作品詳細を見る
-              </button>
+              {zoomedHasSecondWork ? (
+                <>
+                  <div className="star-detail-work-count">WORKS ×2</div>
+                  <div className="star-detail-work-actions">
+                    <button className="star-detail-work-btn" type="button" onClick={() => openWorkFromZoom(1)}>
+                      {workButtonLabel(zoomedStar, 1)}
+                    </button>
+                    <button className="star-detail-work-btn" type="button" onClick={() => openWorkFromZoom(2)}>
+                      {workButtonLabel(zoomedStar, 2)}
+                    </button>
+                  </div>
+                </>
+              ) : (
+                <button className="star-detail-work-btn" type="button" onClick={() => openWorkFromZoom(1)}>
+                  作品詳細を見る
+                </button>
+              )}
             </div>
           )}
         </div>
       ) : null}
       {activePopupStar ? (
-        <StarFeatureModal star={activePopupStar} origin={popupOrigin} onClose={closePopup} resolveImageSource={resolveImageSource} />
+        <StarFeatureModal
+          star={activePopupStar}
+          origin={popupOrigin}
+          onClose={closePopup}
+          resolveImageSource={resolveImageSource}
+          workIndex={activePopupWorkIndex}
+        />
       ) : null}
     </div>
   );
