@@ -18,6 +18,7 @@ import {
   X,
 } from "@phosphor-icons/react";
 import backgroundUrl from "./assets/stellar-map-background.png";
+import hoshiyomiGingaLogoUrl from "./assets/hoshiyomi-ginga-logo.png";
 
 const STORAGE_KEY = "a-plan-star-gallery-demo";
 const IMAGE_DB_NAME = "a-plan-star-gallery-images";
@@ -38,6 +39,21 @@ const PUBLIC_IMAGE_TARGETS = {
 };
 const ETERNIA_TITLE = "エテルニア・ステラリア";
 const ETERNIA_BGM_URL = "assets/audio/ginga-wa-warawa-no-teatime.mp3";
+const ETERNIA_BGM_TITLE = "銀河はわらわのティータイム";
+const INTRO_FADE_MS = 1000;
+const INTRO_HOLD_MS = 850;
+const INTRO_MOVE_MS = 900;
+const INTRO_EXIT_MS = 180;
+const LOGO_IMAGE_WIDTH = 2172;
+const LOGO_IMAGE_HEIGHT = 724;
+
+function prefersReducedMotion() {
+  return typeof window !== "undefined" && window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+}
+
+function getInitialIntroPhase() {
+  return prefersReducedMotion() ? "done" : "intro";
+}
 
 const STAR_NAMES = [
   ETERNIA_TITLE,
@@ -132,6 +148,35 @@ const PLANET_FIELDS = [
   { key: "planetNotes", label: "備考" },
 ];
 const MAX_CHARACTERS_PER_STAR = 12;
+const MAX_CHARACTER_EXTRA_IMAGES = 6;
+
+function normalizeImageList(values, maxItems = Number.POSITIVE_INFINITY) {
+  if (!Array.isArray(values)) return [];
+  const normalized = [];
+  const seen = new Set();
+
+  for (const value of values) {
+    const image = String(value || "").trim();
+    if (!image || seen.has(image)) continue;
+    seen.add(image);
+    normalized.push(image);
+    if (normalized.length >= maxItems) break;
+  }
+
+  return normalized;
+}
+
+function normalizeCharacterImages(images) {
+  return normalizeImageList(images, MAX_CHARACTER_EXTRA_IMAGES);
+}
+
+function getCharacterImageSources(character) {
+  return normalizeImageList([character?.imageUrl, ...(Array.isArray(character?.images) ? character.images : [])]);
+}
+
+function getCharacterExtraImages(character) {
+  return normalizeCharacterImages(character?.images);
+}
 
 function makeCharacterDefaults(name, index = 0, description = "") {
   const fallbackName = name || `キャラクター ${index + 1}`;
@@ -140,6 +185,7 @@ function makeCharacterDefaults(name, index = 0, description = "") {
     id: `character-${index + 1}`,
     name: fallbackName,
     imageUrl: "",
+    images: [],
     description:
       description ||
       `${fallbackName}の紹介テキストをここに入力します。\n画像と詳細文はキャラクターごとに管理できます。`,
@@ -153,6 +199,7 @@ function normalizeCharacter(character, index, fallbackName, fallbackDescription 
     id: character?.id || `character-${index + 1}`,
     name,
     imageUrl: character?.imageUrl ?? character?.standingImageUrl ?? "",
+    images: normalizeCharacterImages(character?.images),
     description:
       character?.description ??
       character?.pastedText ??
@@ -403,6 +450,7 @@ function makeDefaultStars() {
       z: Number((1 + index * 0.17).toFixed(2)),
       imageUrl: makeStarImage(color, index),
       bgmUrl: index === 0 || index === 13 ? ETERNIA_BGM_URL : "",
+      bgmTitle: index === 0 || index === 13 ? ETERNIA_BGM_TITLE : "",
       ...makeFeatureDefaults(name, index, description),
       updatedAt: new Date(Date.now() - index * 900000).toISOString(),
     };
@@ -434,6 +482,7 @@ function normalizeStar(star, index) {
     z: star?.z ?? Number((1 + index * 0.17).toFixed(2)),
     imageUrl: star?.imageUrl || makeStarImage(color, index),
     bgmUrl: star?.bgmUrl || "",
+    bgmTitle: star?.bgmTitle || "",
     creatorName: star?.creatorName ?? featureDefaults.creatorName,
     characterName: primaryCharacter.characterName,
     standingImageUrl: primaryCharacter.standingImageUrl,
@@ -655,10 +704,10 @@ function collectImageValues(stars, backgroundImageUrl) {
   stars.forEach((star) => {
     values.push(star.imageUrl, star.sceneImageUrl, star.sceneImageUrl2, star.standingImageUrl);
     if (Array.isArray(star.characters)) {
-      star.characters.forEach((character) => values.push(character.imageUrl));
+      star.characters.forEach((character) => values.push(...getCharacterImageSources(character)));
     }
     if (Array.isArray(star.characters2)) {
-      star.characters2.forEach((character) => values.push(character.imageUrl));
+      star.characters2.forEach((character) => values.push(...getCharacterImageSources(character)));
     }
   });
   return values.filter(Boolean);
@@ -706,6 +755,7 @@ async function migrateDataImageAssets(stars, backgroundImageUrl) {
             star.characters.map(async (character) => ({
               ...character,
               imageUrl: await migrateValue(character.imageUrl),
+              images: await Promise.all(getCharacterExtraImages(character).map(migrateValue)),
             })),
           )
         : star.characters;
@@ -714,6 +764,7 @@ async function migrateDataImageAssets(stars, backgroundImageUrl) {
             star.characters2.map(async (character) => ({
               ...character,
               imageUrl: await migrateValue(character.imageUrl),
+              images: await Promise.all(getCharacterExtraImages(character).map(migrateValue)),
             })),
           )
         : star.characters2;
@@ -757,20 +808,28 @@ function editableImageValue(value) {
   return isIndexedDbImageRef(value) ? "" : value || "";
 }
 
-function bgmDisplayName(value, audioCache) {
+function bgmTitleFromFileName(fileName) {
+  const name = String(fileName || "").trim();
+  if (!name) return "";
+  return name.replace(/\.[^/.]+$/, "").trim() || name;
+}
+
+function bgmDisplayName(value, audioCache, title = "") {
+  if (String(title || "").trim()) return String(title).trim();
   if (!value) return "未設定";
   if (isIndexedDbAudioRef(value)) return audioCache[value]?.fileName || "アップロードBGM";
   return shortUrl(value);
 }
 
-function globalBgmStatus(value, audioCache) {
+function globalBgmStatus(value, audioCache, title = "") {
+  if (String(title || "").trim()) return String(title).trim();
   const label = bgmDisplayName(value, audioCache);
   return value === DEFAULT_GLOBAL_BGM_URL ? `デフォルト: ${label}` : label;
 }
 
-function starBgmStatus(starValue, globalValue, audioCache) {
-  if (starValue) return bgmDisplayName(starValue, audioCache);
-  return `全体BGM: ${globalBgmStatus(globalValue, audioCache)}`;
+function starBgmStatus(starValue, globalValue, audioCache, starTitle = "", globalTitle = "") {
+  if (starValue) return bgmDisplayName(starValue, audioCache, starTitle);
+  return `全体BGM: ${globalBgmStatus(globalValue, audioCache, globalTitle)}`;
 }
 
 function readStoredConfig() {
@@ -957,13 +1016,17 @@ async function createPublicImageAsset(source, baseName, options) {
 }
 
 async function resolvePublicImageAsset(source, baseName, options, cache, files) {
-  if (!source) return { src: "", missed: false };
-  if (cache.has(source)) return cache.get(source);
+  const normalizedSource = String(source || "").trim();
+  if (!normalizedSource) return { src: "", missed: false };
+  if (cache.has(normalizedSource)) return cache.get(normalizedSource);
 
-  const asset = await createPublicImageAsset(source, baseName, options);
-  if (asset.file) files.push(asset.file);
-  cache.set(source, asset);
-  return asset;
+  const pendingAsset = createPublicImageAsset(normalizedSource, baseName, options).then((asset) => {
+    if (asset.file) files.push(asset.file);
+    cache.set(normalizedSource, asset);
+    return asset;
+  });
+  cache.set(normalizedSource, pendingAsset);
+  return pendingAsset;
 }
 
 async function createPublicAudioAsset(source, baseName, usedPaths) {
@@ -1128,11 +1191,12 @@ function downloadBlob(blob, filename) {
   URL.revokeObjectURL(url);
 }
 
-async function buildExternalPublicExport({ stars, selectedId, bgmUrl, backgroundImageUrl }) {
+async function buildExternalPublicExport({ stars, selectedId, bgmUrl, globalBgmTitle, backgroundImageUrl }) {
   const files = [];
   const imageCache = new Map();
   const audioCache = new Map();
   const usedAudioPaths = new Set(collectReservedPublicAudioPaths(stars, bgmUrl));
+  const logoDataUrl = await urlToDataUrl(hoshiyomiGingaLogoUrl);
   const backgroundAsset = await resolvePublicImageAsset(
     backgroundImageUrl || DEFAULT_BACKGROUND_URL,
     "background",
@@ -1147,6 +1211,38 @@ async function buildExternalPublicExport({ stars, selectedId, bgmUrl, background
     files,
     usedAudioPaths,
   );
+  async function resolvePublicCharacter(character, baseName) {
+    const primaryImage = String(character.imageUrl || "").trim();
+    const extraImages = getCharacterExtraImages(character).filter((imageUrl) => imageUrl !== primaryImage);
+    const [characterAsset, imageAssets] = await Promise.all([
+      resolvePublicImageAsset(
+        primaryImage,
+        baseName,
+        PUBLIC_IMAGE_TARGETS.character,
+        imageCache,
+        files,
+      ),
+      Promise.all(
+        extraImages.map((imageUrl, imageIndex) =>
+          resolvePublicImageAsset(
+            imageUrl,
+            `${baseName}-${imageIndex + 2}`,
+            PUBLIC_IMAGE_TARGETS.character,
+            imageCache,
+            files,
+          ),
+        ),
+      ),
+    ]);
+
+    return {
+      ...character,
+      imageUrl: characterAsset.src,
+      images: imageAssets.map((asset) => asset.src).filter(Boolean),
+      imageEmbedded: !characterAsset.missed || !primaryImage,
+      missedImageAssets: imageAssets.reduce((total, asset) => total + (asset.missed ? 1 : 0), 0),
+    };
+  }
   const publicStars = await Promise.all(
     stars.map(async (star, index) => {
       const starKey = sanitizeAssetName(star.id || `star-${index + 1}`, `star-${index + 1}`);
@@ -1182,36 +1278,20 @@ async function buildExternalPublicExport({ stars, selectedId, bgmUrl, background
           usedAudioPaths,
         ),
         Promise.all(
-          sourceCharacters.map(async (character, characterIndex) => {
-            const characterAsset = await resolvePublicImageAsset(
-              character.imageUrl,
+          sourceCharacters.map((character, characterIndex) =>
+            resolvePublicCharacter(
+              character,
               `${String(index + 1).padStart(2, "0")}-${starKey}-character-${String(characterIndex + 1).padStart(2, "0")}`,
-              PUBLIC_IMAGE_TARGETS.character,
-              imageCache,
-              files,
-            );
-            return {
-              ...character,
-              imageUrl: characterAsset.src,
-              imageEmbedded: !characterAsset.missed || !character.imageUrl,
-            };
-          }),
+            ),
+          ),
         ),
         Promise.all(
-          sourceCharacters2.map(async (character, characterIndex) => {
-            const characterAsset = await resolvePublicImageAsset(
-              character.imageUrl,
+          sourceCharacters2.map((character, characterIndex) =>
+            resolvePublicCharacter(
+              character,
               `${String(index + 1).padStart(2, "0")}-${starKey}-character2-${String(characterIndex + 1).padStart(2, "0")}`,
-              PUBLIC_IMAGE_TARGETS.character,
-              imageCache,
-              files,
-            );
-            return {
-              ...character,
-              imageUrl: characterAsset.src,
-              imageEmbedded: !characterAsset.missed || !character.imageUrl,
-            };
-          }),
+            ),
+          ),
         ),
       ]);
       return {
@@ -1228,8 +1308,14 @@ async function buildExternalPublicExport({ stars, selectedId, bgmUrl, background
         sceneImage2Embedded: !sceneImage2.missed || !star.sceneImageUrl2,
         bgmEmbedded: !starBgm.missed || !star.bgmUrl,
         missedCharacterAssets:
-          characters.reduce((total, character) => total + (character.imageEmbedded ? 0 : 1), 0) +
-          characters2.reduce((total, character) => total + (character.imageEmbedded ? 0 : 1), 0),
+          characters.reduce(
+            (total, character) => total + (character.imageEmbedded ? 0 : 1) + (character.missedImageAssets || 0),
+            0,
+          ) +
+          characters2.reduce(
+            (total, character) => total + (character.imageEmbedded ? 0 : 1) + (character.missedImageAssets || 0),
+            0,
+          ),
       };
     }),
   );
@@ -1250,7 +1336,9 @@ async function buildExternalPublicExport({ stars, selectedId, bgmUrl, background
     stars: publicStars,
     selectedId,
     bgmUrl: globalBgmAsset.src,
+    globalBgmTitle,
     backgroundDataUrl: backgroundAsset.src,
+    logoDataUrl,
   });
   const htmlBlob = new Blob([html], { type: "text/html;charset=utf-8" });
   const zipBlob = await createZipBlob([{ path: "index.html", blob: htmlBlob }, ...files]);
@@ -1270,13 +1358,25 @@ function escapeJsonForHtml(data) {
   return JSON.stringify(data).replace(/</g, "\\u003c");
 }
 
-function buildPublicHtml({ stars, selectedId, bgmUrl, backgroundDataUrl }) {
+function escapeHtmlForMarkup(value) {
+  return String(value ?? "")
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#039;");
+}
+
+function buildPublicHtml({ stars, selectedId, bgmUrl, globalBgmTitle, backgroundDataUrl, logoDataUrl }) {
+  const initialBgmLabel = String(globalBgmTitle || "").trim() || shortUrl(bgmUrl);
+  const logoSrc = escapeHtmlForMarkup(logoDataUrl || hoshiyomiGingaLogoUrl);
+
   return `<!doctype html>
 <html lang="ja">
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>A-plan 星図ギャラリー</title>
+<title>星詠銀河・星図</title>
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;600;700&family=Noto+Sans+JP:wght@400;500;700;800&display=swap" rel="stylesheet" />
@@ -1382,17 +1482,17 @@ button { font: inherit; }
   gap: 12px;
   min-width: 0;
 }
-.brand-mark {
-  width: 36px;
-  height: 36px;
-  border-radius: 50%;
-  border: 1px solid rgba(255,255,255,.72);
-  box-shadow: 0 0 24px rgba(255,211,77,.2), inset 0 0 14px rgba(124,215,255,.18);
-}
-.brand h1 {
-  margin: 0;
-  font-size: 20px;
-  line-height: 1.2;
+.brand-logo {
+  display: block;
+  width: auto;
+  max-width: 100%;
+  height: clamp(40px, 4.2vw, 48px);
+  object-fit: contain;
+  mix-blend-mode: screen;
+  -webkit-mask-image: radial-gradient(115% 115% at 50% 50%, #000 66%, transparent 98%);
+  mask-image: radial-gradient(115% 115% at 50% 50%, #000 66%, transparent 98%);
+  filter: contrast(1.3) drop-shadow(0 0 18px rgba(246, 251, 255, 0.12));
+  user-select: none;
 }
 .brand span,
 .public-audio span {
@@ -1400,6 +1500,57 @@ button { font: inherit; }
   margin-top: 3px;
   color: rgba(226,239,251,.64);
   font-size: 12px;
+}
+.intro-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  overflow: hidden;
+  background: #0a0b1a;
+  cursor: pointer;
+  opacity: 1;
+  transition: opacity var(--intro-exit-ms) ease-out;
+}
+.intro-overlay.is-exiting {
+  opacity: 0;
+  pointer-events: none;
+}
+.intro-logo-frame {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  width: clamp(240px, 48vw, 520px);
+  aspect-ratio: 2172 / 724;
+  transform: translate(-50%, -50%) scale(1);
+  transform-origin: center center;
+  transition: transform var(--intro-move-ms) var(--ease-spring);
+  will-change: transform;
+}
+.intro-overlay.is-moving .intro-logo-frame,
+.intro-overlay.is-exiting .intro-logo-frame {
+  transform: translate(calc(-50% + var(--intro-logo-x)), calc(-50% + var(--intro-logo-y))) scale(var(--intro-logo-scale));
+}
+.intro-overlay.is-exiting .intro-logo-frame {
+  transition-duration: 0ms;
+}
+.intro-logo-image {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  mix-blend-mode: screen;
+  -webkit-mask-image: radial-gradient(115% 115% at 50% 50%, #000 66%, transparent 98%);
+  mask-image: radial-gradient(115% 115% at 50% 50%, #000 66%, transparent 98%);
+  filter: contrast(1.3) drop-shadow(0 0 18px rgba(246, 251, 255, 0.12));
+  opacity: 0;
+  transform: scale(1.02);
+  animation: introLogoReveal var(--intro-fade-ms) var(--ease-out) forwards;
+  user-select: none;
+  will-change: opacity, transform;
+}
+@keyframes introLogoReveal {
+  from { opacity: 0; transform: scale(1.02); }
+  to { opacity: 1; transform: scale(1); }
 }
 .public-audio {
   display: flex;
@@ -1663,6 +1814,7 @@ button { font: inherit; }
 .feature-modal .feature-link,
 .feature-modal .feature-section-title,
 .feature-modal .feature-character,
+.feature-modal .feature-character-gallery,
 .feature-modal .feature-character-name,
 .feature-modal .feature-character-text {
   animation: featureContentIn .46s var(--ease-out) both;
@@ -1674,6 +1826,7 @@ button { font: inherit; }
 .feature-modal .feature-link { animation-delay: 310ms; }
 .feature-modal .feature-section-title { animation-delay: 365ms; }
 .feature-modal .feature-character { animation-delay: 420ms; }
+.feature-modal .feature-character-gallery { animation-delay: 448ms; }
 .feature-modal .feature-character-name { animation-delay: 475ms; }
 .feature-modal .feature-character-text { animation-delay: 530ms; }
 .feature-overlay.is-closing .feature-hero,
@@ -1683,6 +1836,7 @@ button { font: inherit; }
 .feature-overlay.is-closing .feature-link,
 .feature-overlay.is-closing .feature-section-title,
 .feature-overlay.is-closing .feature-character,
+.feature-overlay.is-closing .feature-character-gallery,
 .feature-overlay.is-closing .feature-character-name,
 .feature-overlay.is-closing .feature-character-text { animation: none; }
 .feature-close {
@@ -1742,6 +1896,48 @@ button { font: inherit; }
   max-height: 58svh;
   object-fit: contain;
   filter: drop-shadow(0 22px 38px rgba(0,0,0,.45));
+}
+.feature-character-media {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.feature-character-gallery {
+  display: flex;
+  gap: 8px;
+  max-width: 100%;
+  min-width: 0;
+  padding: 2px 1px 4px;
+  overflow-x: auto;
+  scrollbar-color: rgba(111,231,200,.46) rgba(255,255,255,.05);
+}
+.feature-character-thumb {
+  flex: 0 0 54px;
+  width: 54px;
+  height: 54px;
+  padding: 2px;
+  border: 1px solid rgba(255,255,255,.18);
+  border-radius: 8px;
+  background: rgba(3,8,15,.72);
+  cursor: pointer;
+  opacity: .72;
+  transition: border-color 180ms ease, opacity 180ms ease, transform 180ms ease;
+}
+.feature-character-thumb:hover,
+.feature-character-thumb.is-active {
+  border-color: color-mix(in srgb, var(--feature-color, #ffd34d), white 16%);
+  opacity: 1;
+}
+.feature-character-thumb.is-active {
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--feature-color, #ffd34d), transparent 62%);
+}
+.feature-character-thumb img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border-radius: 6px;
+  object-fit: cover;
 }
 .feature-work-details,
 .feature-character-intro,
@@ -1808,6 +2004,7 @@ button { font: inherit; }
   font-size: clamp(28px, 3rem, 46px);
   line-height: 1.05;
   overflow-wrap: anywhere;
+  white-space: pre-line;
 }
 .feature-section-title {
   margin: 0;
@@ -1948,6 +2145,7 @@ button { font: inherit; }
   backdrop-filter: blur(24px) saturate(1.15);
   box-shadow: 0 -20px 60px rgba(0,0,0,.4), 0 -1px 0 rgba(255,255,255,.06) inset;
   overflow-y: auto;
+  overflow-anchor: none;
   animation: sheetSlideUp 600ms var(--ease-spring);
 }
 .star-detail-sheet.is-closing { animation: sheetSlideDown 400ms var(--ease-out) forwards; }
@@ -2042,11 +2240,12 @@ button { font: inherit; }
   .feature-overlay, .feature-modal,
   .feature-modal .feature-hero, .feature-modal .feature-kicker, .feature-modal .feature-work-details h2,
   .feature-modal .feature-work-description, .feature-modal .feature-link, .feature-modal .feature-section-title,
-  .feature-modal .feature-character, .feature-modal .feature-character-name, .feature-modal .feature-character-text {
+  .feature-modal .feature-character, .feature-modal .feature-character-gallery, .feature-modal .feature-character-name, .feature-modal .feature-character-text {
     animation: featureFade .16s ease-out both;
   }
   .star-button.feature-active { transform: translate(-50%, -50%) scale(1.7); }
   .shooting-star { display: none; }
+  .intro-overlay { display: none; }
   .map { transition-duration: .001ms !important; }
   .star-detail-sheet { animation: featureFade .16s ease-out !important; }
 }
@@ -2124,6 +2323,7 @@ button { font: inherit; }
   .feature-modal .feature-link,
   .feature-modal .feature-section-title,
   .feature-modal .feature-character,
+  .feature-modal .feature-character-gallery,
   .feature-modal .feature-character-name,
   .feature-modal .feature-character-text {
     animation: none;
@@ -2163,18 +2363,27 @@ button { font: inherit; }
   <span class="shooting-star two" aria-hidden="true"></span>
   <header class="public-top">
     <div class="brand">
-      <div class="brand-mark"></div>
+      <img id="brand-logo" class="brand-logo" src="${logoSrc}" alt="星詠銀河・星図" width="${LOGO_IMAGE_WIDTH}" height="${LOGO_IMAGE_HEIGHT}" draggable="false" />
       <div>
-        <h1>A-plan 星図ギャラリー</h1>
         <span>公開表示 / ${stars.length} stars</span>
       </div>
     </div>
     <div class="public-audio">
       <button id="audioToggle">BGM再生</button>
-      <span id="audioLabel">${shortUrl(bgmUrl)}</span>
-      <audio id="bgm" loop src="${bgmUrl || ""}"></audio>
+      <span id="audioLabel">${escapeHtmlForMarkup(initialBgmLabel)}</span>
+      <audio id="bgm" loop src="${escapeHtmlForMarkup(bgmUrl || "")}"></audio>
     </div>
   </header>
+  <div
+    class="intro-overlay"
+    id="introOverlay"
+    style="--intro-logo-x: 0px; --intro-logo-y: 0px; --intro-logo-scale: 1; --intro-fade-ms: ${INTRO_FADE_MS}ms; --intro-move-ms: ${INTRO_MOVE_MS}ms; --intro-exit-ms: ${INTRO_EXIT_MS}ms;"
+    aria-hidden="true"
+  >
+    <div class="intro-logo-frame" id="introLogoFrame">
+      <img class="intro-logo-image" src="${logoSrc}" alt="" width="${LOGO_IMAGE_WIDTH}" height="${LOGO_IMAGE_HEIGHT}" draggable="false" />
+    </div>
+  </div>
   <main class="public-main" id="publicMain">
     <section class="map" id="map">
       <span class="orbit" style="--w: 46vw; --h: 18vw; --r: -14deg; --d: 72s"></span>
@@ -2200,10 +2409,18 @@ let featureId = "";
 let featureWorkIndex = 1;
 let zoomedId = "";
 let zoomDetailTimer = null;
-const globalBgmUrl = ${JSON.stringify(bgmUrl || "")};
+const globalBgmUrl = ${escapeJsonForHtml(bgmUrl || "")};
+const globalBgmTitle = ${escapeJsonForHtml(globalBgmTitle || "")};
+const INTRO_FADE_MS = ${INTRO_FADE_MS};
+const INTRO_HOLD_MS = ${INTRO_HOLD_MS};
+const INTRO_MOVE_MS = ${INTRO_MOVE_MS};
+const INTRO_EXIT_MS = ${INTRO_EXIT_MS};
 const map = document.getElementById("map");
 const detail = document.getElementById("detail");
 const publicMain = document.getElementById("publicMain");
+const brandLogo = document.getElementById("brand-logo");
+const introOverlay = document.getElementById("introOverlay");
+const introLogoFrame = document.getElementById("introLogoFrame");
 const zoomBackdrop = document.getElementById("zoomBackdrop");
 const starDetailSheet = document.getElementById("starDetailSheet");
 const audio = document.getElementById("bgm");
@@ -2216,6 +2433,85 @@ let audioEnabled = false;
 let galleryResumeTime = 0;
 let currentAudioUrl = "";
 let currentAudioIsGallery = true;
+let introPhase = "intro";
+let introMoveTimer = 0;
+let introExitTimer = 0;
+let introRaf = 0;
+
+function prefersReducedMotion() {
+  return Boolean(window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches);
+}
+
+function finishIntro() {
+  if (introPhase === "done") return;
+  introPhase = "done";
+  if (introMoveTimer) window.clearTimeout(introMoveTimer);
+  if (introExitTimer) window.clearTimeout(introExitTimer);
+  if (introRaf) window.cancelAnimationFrame(introRaf);
+  introMoveTimer = 0;
+  introExitTimer = 0;
+  introRaf = 0;
+  if (introOverlay) introOverlay.remove();
+}
+
+function beginIntroExit() {
+  if (introPhase !== "moving" || !introOverlay) return;
+  introPhase = "exiting";
+  introOverlay.classList.add("is-exiting");
+  introExitTimer = window.setTimeout(finishIntro, INTRO_EXIT_MS);
+}
+
+function startIntroMove() {
+  if (prefersReducedMotion()) {
+    finishIntro();
+    return;
+  }
+  if (!brandLogo || !introLogoFrame || !introOverlay) {
+    finishIntro();
+    return;
+  }
+  var dockedRect = brandLogo.getBoundingClientRect();
+  var introRect = introLogoFrame.getBoundingClientRect();
+  if (!dockedRect.width || !dockedRect.height || !introRect.width || !introRect.height) {
+    finishIntro();
+    return;
+  }
+  var x = dockedRect.left + dockedRect.width / 2 - (introRect.left + introRect.width / 2);
+  var y = dockedRect.top + dockedRect.height / 2 - (introRect.top + introRect.height / 2);
+  var scale = dockedRect.width / introRect.width;
+  introOverlay.style.setProperty("--intro-logo-x", x + "px");
+  introOverlay.style.setProperty("--intro-logo-y", y + "px");
+  introOverlay.style.setProperty("--intro-logo-scale", String(scale));
+  introRaf = window.requestAnimationFrame(function() {
+    introRaf = 0;
+    if (introPhase !== "intro") return;
+    introPhase = "moving";
+    introOverlay.classList.add("is-moving");
+  });
+}
+
+function runIntro() {
+  if (!introOverlay) return;
+  if (prefersReducedMotion()) {
+    finishIntro();
+    return;
+  }
+  introOverlay.addEventListener("pointerdown", finishIntro);
+  introLogoFrame?.addEventListener("transitionend", function(event) {
+    if (event.target !== introLogoFrame || event.propertyName !== "transform") return;
+    beginIntroExit();
+  });
+  introMoveTimer = window.setTimeout(startIntroMove, INTRO_FADE_MS + INTRO_HOLD_MS);
+  window.matchMedia?.("(prefers-reduced-motion: reduce)").addEventListener?.("change", function(event) {
+    if (event.matches) finishIntro();
+  });
+  window.setTimeout(function() {
+    if (introPhase === "moving") beginIntroExit();
+  }, INTRO_FADE_MS + INTRO_HOLD_MS + INTRO_MOVE_MS + 80);
+  window.setTimeout(finishIntro, INTRO_FADE_MS + INTRO_HOLD_MS + INTRO_MOVE_MS + INTRO_EXIT_MS + 400);
+}
+
+runIntro();
 
 function shortPublicUrl(value) {
   if (!value) return "未設定";
@@ -2226,6 +2522,18 @@ function shortPublicUrl(value) {
   } catch {
     return value.length > 34 ? value.slice(0, 31) + "..." : value;
   }
+}
+
+function publicBgmLabel(value, title) {
+  var displayTitle = String(title || "").trim();
+  return displayTitle || shortPublicUrl(value);
+}
+
+function publicStarBgmLabel(star) {
+  var hasStarBgm = star && star.bgmUrl;
+  var bgmUrl = hasStarBgm ? star.bgmUrl : globalBgmUrl;
+  var bgmTitle = hasStarBgm ? star.bgmTitle : globalBgmTitle;
+  return publicBgmLabel(bgmUrl, bgmTitle);
 }
 
 function escapeHtml(value) {
@@ -2300,6 +2608,19 @@ function getCharacters(star, workIndex) {
   }];
 }
 
+function getCharacterImageSources(character) {
+  var sources = [character && character.imageUrl].concat(Array.isArray(character && character.images) ? character.images : []);
+  var seen = {};
+  var images = [];
+  sources.forEach(function(value) {
+    var image = String(value || "").trim();
+    if (!image || seen[image]) return;
+    seen[image] = true;
+    images.push(image);
+  });
+  return images;
+}
+
 function hasSecondWork(star) {
   return [star.creatorName2, star.sceneImageUrl2, star.workTitle2, star.workUrl2, star.workDescription2].some(function(value) {
     return String(value || "").trim();
@@ -2335,8 +2656,23 @@ function workButtonLabel(star, workIndex) {
 }
 
 function renderCharacter(character, index) {
+  var imageSources = getCharacterImageSources(character);
+  var selectedImage = imageSources[0] || "";
+  var characterName = character.name || "キャラクター";
+  var galleryHtml = imageSources.length > 1
+    ? '<div class="feature-character-gallery" role="list" aria-label="' + escapeAttr(characterName + "の画像切替") + '">' +
+        imageSources.map(function(src, imageIndex) {
+          return '<button class="feature-character-thumb' + (imageIndex === 0 ? ' is-active' : '') + '" type="button" data-character-image="' + escapeAttr(src) + '" aria-label="' + escapeAttr(characterName + " 画像 " + String(imageIndex + 1)) + '">' +
+            '<img loading="lazy" decoding="async" alt="" src="' + escapeAttr(src) + '" />' +
+          '</button>';
+        }).join('') +
+      '</div>'
+    : '';
   return '<article class="feature-character-card">' +
-    renderImageOrEmpty(character.imageUrl, "feature-character", "キャラ画像未設定", character.name || "キャラクター") +
+    '<div class="feature-character-media">' +
+      renderImageOrEmpty(selectedImage, "feature-character", "キャラ画像未設定", characterName) +
+      galleryHtml +
+    '</div>' +
     '<div class="feature-character-copy">' +
       '<span class="feature-character-index">CHARACTER ' + String(index + 1).padStart(2, "0") + '</span>' +
       '<strong class="feature-character-name">' + escapeHtml(character.name || "未設定") + '</strong>' +
@@ -2347,7 +2683,11 @@ function renderCharacter(character, index) {
 
 function preloadFeatureImages(star, workIndex) {
   var work = getWork(star, workIndex);
-  [work.sceneImageUrl].concat(getCharacters(star, workIndex).map(function(character) { return character.imageUrl; }))
+  var imageSources = [work.sceneImageUrl];
+  getCharacters(star, workIndex).forEach(function(character) {
+    imageSources = imageSources.concat(getCharacterImageSources(character));
+  });
+  imageSources
     .filter(Boolean)
     .forEach(function(src) {
       const image = new Image();
@@ -2381,6 +2721,20 @@ function renderFeature(star, workIndex) {
       linkHtml +
     '</section>' +
     characterHtml;
+  featureBody.querySelectorAll(".feature-character-gallery").forEach(function(gallery) {
+    gallery.addEventListener("click", function(event) {
+      var button = event.target.closest(".feature-character-thumb");
+      if (!button || !gallery.contains(button)) return;
+      var card = button.closest(".feature-character-card");
+      var image = card ? card.querySelector(".feature-character img") : null;
+      var src = button.getAttribute("data-character-image") || "";
+      if (!image || !src) return;
+      image.src = src;
+      gallery.querySelectorAll(".feature-character-thumb").forEach(function(thumb) {
+        thumb.classList.toggle("is-active", thumb === button);
+      });
+    });
+  });
   featureBody.querySelectorAll("img").forEach(function(image) {
     if (image.decode) image.decode().catch(function() {});
   });
@@ -2468,7 +2822,7 @@ function showStarDetail(star) {
       return '<div' + className + '><span>' + escapeHtml(field.label) + '</span><strong>' + escapeHtml(star[field.key]) + '</strong></div>';
     })
     .join('');
-  var bgmLabel = shortPublicUrl(star.bgmUrl || globalBgmUrl);
+  var bgmLabel = publicStarBgmLabel(star);
   var hasSecond = hasSecondWork(star);
   var workButtons = hasSecond
     ? '<div class="star-detail-work-count">WORKS ×2</div>' +
@@ -2488,6 +2842,7 @@ function showStarDetail(star) {
       '<div><span>BGM</span><strong>' + escapeHtml(bgmLabel) + '</strong></div>' +
     '</div>' +
     workButtons;
+  starDetailSheet.scrollTop = 0;
   starDetailSheet.hidden = false;
   starDetailSheet.classList.remove("is-closing");
   document.getElementById("starDetailClose").addEventListener("click", closeZoom);
@@ -2522,8 +2877,10 @@ function render() {
   const selected = pickStar();
   const workBgmStar = pickFeatureStar() || pickZoomedStar();
   const workBgmUrl = workBgmStar && workBgmStar.bgmUrl ? workBgmStar.bgmUrl : "";
+  const currentBgmTitle = workBgmUrl && workBgmStar ? workBgmStar.bgmTitle : globalBgmTitle;
   const currentBgm = workBgmUrl || globalBgmUrl;
   const currentBgmIsGallery = !workBgmUrl;
+  const currentBgmLabel = publicBgmLabel(currentBgm, currentBgmTitle);
   map.querySelectorAll(".star-button").forEach((node) => node.remove());
   stars.forEach((star, index) => {
     const button = document.createElement("button");
@@ -2556,9 +2913,9 @@ function render() {
         var className = field.key === "planetNotes" ? " meta-row is-planet-notes" : " meta-row";
         return '<div class="' + className.trim() + '"><span>' + escapeHtml(field.label) + '</span><strong>' + escapeHtml(selected[field.key]) + '</strong></div>';
       }).join('')}
-      <div class="meta-row"><span>BGM</span><strong>\${escapeHtml(shortPublicUrl(currentBgm))}</strong></div>
+      <div class="meta-row"><span>BGM</span><strong>\${escapeHtml(currentBgmLabel)}</strong></div>
     </div>\`;
-  document.getElementById("audioLabel").textContent = shortPublicUrl(currentBgm);
+  document.getElementById("audioLabel").textContent = currentBgmLabel;
   if (
     currentAudioUrl &&
     currentAudioIsGallery &&
@@ -2664,6 +3021,14 @@ function StarFeatureModal({ star, origin, onClose, resolveImageSource = (value) 
   const modalRef = useRef(null);
   const closeRef = useRef(null);
   const [closing, setClosing] = useState(false);
+  const [selectedCharacterImageIndexes, setSelectedCharacterImageIndexes] = useState({});
+  const preloadImageSources = useMemo(
+    () => [
+      sceneImageSrc,
+      ...characters.flatMap((character) => getCharacterImageSources(character).map((src) => resolveImageSource(src))),
+    ].filter(Boolean),
+    [characters, resolveImageSource, sceneImageSrc],
+  );
 
   const viewportW = typeof window !== "undefined" ? window.innerWidth : 1440;
   const viewportH = typeof window !== "undefined" ? window.innerHeight : 900;
@@ -2675,16 +3040,49 @@ function StarFeatureModal({ star, origin, onClose, resolveImageSource = (value) 
   const requestClose = useCallback(() => setClosing(true), []);
 
   useEffect(() => {
-    [sceneImageSrc, ...characters.map((character) => resolveImageSource(character.imageUrl))]
-      .filter(Boolean)
-      .forEach((src) => {
-        const image = new window.Image();
-        image.loading = "eager";
-        image.decoding = "sync";
-        image.src = src;
-        image.decode?.().catch(() => {});
+    preloadImageSources.forEach((src) => {
+      const image = new window.Image();
+      image.loading = "eager";
+      image.decoding = "sync";
+      image.src = src;
+      image.decode?.().catch(() => {});
+    });
+  }, [preloadImageSources]);
+
+  useEffect(() => {
+    setSelectedCharacterImageIndexes({});
+  }, [star.id, workIndex]);
+
+  useEffect(() => {
+    setSelectedCharacterImageIndexes((current) => {
+      const next = {};
+      let changed = false;
+
+      characters.forEach((character, index) => {
+        const characterKey = character.id || `${workIndex}-${index}`;
+        const imageCount = getCharacterImageSources(character)
+          .map((src) => resolveImageSource(src))
+          .filter(Boolean).length;
+        const currentIndex = current[characterKey];
+
+        if (currentIndex === undefined) return;
+        if (imageCount <= 1) {
+          changed = true;
+          return;
+        }
+
+        const nextIndex = Math.min(currentIndex, imageCount - 1);
+        next[characterKey] = nextIndex;
+        if (nextIndex !== currentIndex) changed = true;
       });
-  }, [characters, resolveImageSource, sceneImageSrc]);
+
+      if (!changed) {
+        changed = Object.keys(current).some((key) => !(key in next));
+      }
+
+      return changed ? next : current;
+    });
+  }, [characters, resolveImageSource, workIndex]);
 
   useEffect(() => {
     if (!closing) return undefined;
@@ -2778,23 +3176,53 @@ function StarFeatureModal({ star, origin, onClose, resolveImageSource = (value) 
             <h3 className="feature-section-title">キャラクター紹介</h3>
             <div className="feature-character-list">
               {characters.map((character, index) => {
-                const characterImageSrc = resolveImageSource(character.imageUrl);
+                const characterKey = character.id || `${workIndex}-${index}`;
+                const characterImageSources = getCharacterImageSources(character)
+                  .map((src) => resolveImageSource(src))
+                  .filter(Boolean);
+                const selectedIndex = Math.min(
+                  selectedCharacterImageIndexes[characterKey] ?? 0,
+                  Math.max(characterImageSources.length - 1, 0),
+                );
+                const characterImageSrc = characterImageSources[selectedIndex] || "";
                 return (
                   <article className="feature-character-card" key={character.id || `${character.name}-${index}`}>
-                    <div className="feature-character">
-                      {characterImageSrc ? (
-                        <img
-                          alt={character.name || "キャラクター"}
-                          src={characterImageSrc}
-                          loading="eager"
-                          decoding="sync"
-                          fetchPriority="high"
-                          width="768"
-                          height="768"
-                        />
-                      ) : (
-                        <div className="feature-empty">キャラ画像未設定</div>
-                      )}
+                    <div className="feature-character-media">
+                      <div className="feature-character">
+                        {characterImageSrc ? (
+                          <img
+                            alt={character.name || "キャラクター"}
+                            src={characterImageSrc}
+                            loading="eager"
+                            decoding="sync"
+                            fetchPriority="high"
+                            width="768"
+                            height="768"
+                          />
+                        ) : (
+                          <div className="feature-empty">キャラ画像未設定</div>
+                        )}
+                      </div>
+                      {characterImageSources.length > 1 ? (
+                        <div className="feature-character-gallery" aria-label={`${character.name || "キャラクター"}の画像切替`}>
+                          {characterImageSources.map((src, imageIndex) => (
+                            <button
+                              className={`feature-character-thumb ${imageIndex === selectedIndex ? "is-active" : ""}`}
+                              type="button"
+                              key={`${src}-${imageIndex}`}
+                              onClick={() =>
+                                setSelectedCharacterImageIndexes((current) => ({
+                                  ...current,
+                                  [characterKey]: imageIndex,
+                                }))
+                              }
+                              aria-label={`${character.name || "キャラクター"} 画像 ${imageIndex + 1}`}
+                            >
+                              <img alt="" src={src} loading="lazy" decoding="async" />
+                            </button>
+                          ))}
+                        </div>
+                      ) : null}
                     </div>
                     <div className="feature-character-copy">
                       <span className="feature-character-index">CHARACTER {String(index + 1).padStart(2, "0")}</span>
@@ -2826,6 +3254,10 @@ function App() {
     const stored = readStoredConfig();
     return stored.globalBgmUrl || DEFAULT_GLOBAL_BGM_URL;
   });
+  const [globalBgmTitle, setGlobalBgmTitle] = useState(() => {
+    const stored = readStoredConfig();
+    return stored.globalBgmTitle || "";
+  });
   const [backgroundImageUrl, setBackgroundImageUrl] = useState(() => {
     const stored = readStoredConfig();
     return stored.backgroundImageUrl || DEFAULT_BACKGROUND_URL;
@@ -2833,6 +3265,7 @@ function App() {
   const [isAudioEnabled, setIsAudioEnabled] = useState(false);
   const [volume, setVolume] = useState(0.68);
   const [saveState, setSaveState] = useState("保存済み");
+  const [characterImageStatus, setCharacterImageStatus] = useState("");
   const [isExporting, setIsExporting] = useState(false);
   const [exportStatus, setExportStatus] = useState("");
   const [isPreviewMode, setIsPreviewMode] = useState(false);
@@ -2846,9 +3279,16 @@ function App() {
   const [indexedDbImages, setIndexedDbImages] = useState({});
   const [indexedDbAudios, setIndexedDbAudios] = useState({});
   const [isSecondWorkEditorOpen, setIsSecondWorkEditorOpen] = useState(false);
+  const [introPhase, setIntroPhase] = useState(getInitialIntroPhase);
+  const [introTransform, setIntroTransform] = useState({ x: "0px", y: "0px", scale: 1 });
   const audioRef = useRef(null);
+  const brandLogoRef = useRef(null);
+  const introLogoFrameRef = useRef(null);
+  const introRafRef = useRef(0);
   const spaceMapRef = useRef(null);
   const triggerElRef = useRef(null);
+  const starDetailSheetRef = useRef(null);
+  const characterImageStatusTimerRef = useRef(null);
   const galleryResumeTimeRef = useRef(0);
   const currentAudioUrlRef = useRef("");
   const currentAudioIsGalleryRef = useRef(true);
@@ -2872,8 +3312,10 @@ function App() {
   const effectiveBgmUrl = activeWorkBgmUrl || globalBgmUrl;
   const effectiveBgmPlaybackUrl = resolveStoredAudioSource(effectiveBgmUrl, indexedDbAudios);
   const effectiveBgmIsGallery = !activeWorkBgmUrl;
-  const globalBgmLabel = globalBgmStatus(globalBgmUrl, indexedDbAudios);
-  const selectedBgmLabel = selectedStar ? starBgmStatus(selectedStar.bgmUrl, globalBgmUrl, indexedDbAudios) : "";
+  const globalBgmLabel = globalBgmStatus(globalBgmUrl, indexedDbAudios, globalBgmTitle);
+  const selectedBgmLabel = selectedStar
+    ? starBgmStatus(selectedStar.bgmUrl, globalBgmUrl, indexedDbAudios, selectedStar.bgmTitle, globalBgmTitle)
+    : "";
   const hasPendingDataImageMigration = useMemo(
     () => hasDataImageAssets(stars, backgroundImageUrl),
     [stars, backgroundImageUrl],
@@ -2883,6 +3325,118 @@ function App() {
     [indexedDbImages],
   );
   const displayBackgroundImageUrl = resolveImageSource(backgroundImageUrl) || DEFAULT_BACKGROUND_URL;
+
+  const finishIntro = useCallback(() => {
+    if (introRafRef.current) {
+      window.cancelAnimationFrame(introRafRef.current);
+      introRafRef.current = 0;
+    }
+    setIntroPhase("done");
+  }, []);
+
+  const startIntroMove = useCallback(() => {
+    if (prefersReducedMotion()) {
+      finishIntro();
+      return;
+    }
+
+    const dockedLogo = brandLogoRef.current;
+    const introLogo = introLogoFrameRef.current;
+    if (!dockedLogo || !introLogo) {
+      finishIntro();
+      return;
+    }
+
+    const dockedRect = dockedLogo.getBoundingClientRect();
+    const introRect = introLogo.getBoundingClientRect();
+    if (!dockedRect.width || !dockedRect.height || !introRect.width || !introRect.height) {
+      finishIntro();
+      return;
+    }
+
+    const x = dockedRect.left + dockedRect.width / 2 - (introRect.left + introRect.width / 2);
+    const y = dockedRect.top + dockedRect.height / 2 - (introRect.top + introRect.height / 2);
+    const scale = dockedRect.width / introRect.width;
+    setIntroTransform({ x: `${x}px`, y: `${y}px`, scale });
+
+    introRafRef.current = window.requestAnimationFrame(() => {
+      introRafRef.current = 0;
+      setIntroPhase((current) => (current === "intro" ? "moving" : current));
+    });
+  }, [finishIntro]);
+
+  const handleIntroMoveEnd = useCallback((event) => {
+    if (event.target !== introLogoFrameRef.current || event.propertyName !== "transform") return;
+    setIntroPhase((current) => (current === "moving" ? "exiting" : current));
+  }, []);
+
+  function showCharacterImageStatus(message) {
+    setCharacterImageStatus(message);
+    if (characterImageStatusTimerRef.current) {
+      window.clearTimeout(characterImageStatusTimerRef.current);
+    }
+    characterImageStatusTimerRef.current = window.setTimeout(() => {
+      setCharacterImageStatus("");
+      characterImageStatusTimerRef.current = null;
+    }, 4200);
+  }
+
+  useEffect(
+    () => () => {
+      if (characterImageStatusTimerRef.current) {
+        window.clearTimeout(characterImageStatusTimerRef.current);
+      }
+    },
+    [],
+  );
+
+  useEffect(
+    () => () => {
+      if (introRafRef.current) {
+        window.cancelAnimationFrame(introRafRef.current);
+        introRafRef.current = 0;
+      }
+    },
+    [],
+  );
+
+  useEffect(() => {
+    if (introPhase === "done") return undefined;
+
+    const media = window.matchMedia?.("(prefers-reduced-motion: reduce)");
+    if (!media) return undefined;
+    if (media.matches) {
+      finishIntro();
+      return undefined;
+    }
+
+    function handleMotionPreferenceChange(event) {
+      if (event.matches) finishIntro();
+    }
+
+    media.addEventListener?.("change", handleMotionPreferenceChange);
+    return () => media.removeEventListener?.("change", handleMotionPreferenceChange);
+  }, [finishIntro, introPhase]);
+
+  useEffect(() => {
+    if (introPhase !== "intro") return undefined;
+    const handle = window.setTimeout(startIntroMove, INTRO_FADE_MS + INTRO_HOLD_MS);
+    return () => window.clearTimeout(handle);
+  }, [introPhase, startIntroMove]);
+
+  useEffect(() => {
+    if (introPhase !== "moving") return undefined;
+    const handle = window.setTimeout(() => {
+      setIntroPhase((current) => (current === "moving" ? "exiting" : current));
+    }, INTRO_MOVE_MS);
+    return () => window.clearTimeout(handle);
+  }, [introPhase]);
+
+  useEffect(() => {
+    if (introPhase !== "exiting") return undefined;
+    const handle = window.setTimeout(finishIntro, INTRO_EXIT_MS);
+    return () => window.clearTimeout(handle);
+  }, [finishIntro, introPhase]);
 
   useEffect(() => {
     if (hasPendingDataImageMigration) {
@@ -2898,6 +3452,7 @@ function App() {
           JSON.stringify({
             stars,
             globalBgmUrl,
+            globalBgmTitle,
             backgroundImageUrl,
             updatedAt: new Date().toISOString(),
           }),
@@ -2909,7 +3464,7 @@ function App() {
     }, 260);
 
     return () => window.clearTimeout(handle);
-  }, [stars, globalBgmUrl, backgroundImageUrl, hasPendingDataImageMigration]);
+  }, [stars, globalBgmUrl, globalBgmTitle, backgroundImageUrl, hasPendingDataImageMigration]);
 
   useEffect(() => {
     if (!hasPendingDataImageMigration) return undefined;
@@ -3082,6 +3637,13 @@ function App() {
   }, [zoomedStarId, zoomClosing]);
 
   useEffect(() => {
+    if (!showStarDetail) return;
+    if (starDetailSheetRef.current) {
+      starDetailSheetRef.current.scrollTop = 0;
+    }
+  }, [showStarDetail, zoomedStarId]);
+
+  useEffect(() => {
     if (!zoomedStarId || activePopupStarId) return undefined;
     function onKeyDown(event) {
       if (event.key === "Escape") {
@@ -3204,6 +3766,68 @@ function App() {
     }
   }
 
+  async function uploadSelectedCharacterExtraImages(characterId, files, workIndex = 1) {
+    const selectedFiles = Array.from(files || []).filter(Boolean);
+    if (!selectedStar || selectedFiles.length === 0) return;
+
+    const character = getDisplayCharacters(selectedStar, workIndex).find((item) => item.id === characterId);
+    if (!character) return;
+
+    const currentImages = getCharacterExtraImages(character);
+    const remainingSlots = MAX_CHARACTER_EXTRA_IMAGES - currentImages.length;
+    if (remainingSlots <= 0) {
+      showCharacterImageStatus(`追加画像は最大${MAX_CHARACTER_EXTRA_IMAGES}枚です。新しい画像は追加されませんでした。`);
+      return;
+    }
+
+    const uploadFiles = selectedFiles.slice(0, remainingSlots);
+    const ignoredCount = selectedFiles.length - uploadFiles.length;
+
+    try {
+      const nextImageRefs = [];
+      const nextImageCache = {};
+
+      for (const file of uploadFiles) {
+        const { ref, dataUrl } = await storeFileAsIndexedDbImage(file);
+        if (ref) {
+          nextImageRefs.push(ref);
+          nextImageCache[ref] = dataUrl;
+        }
+      }
+
+      if (nextImageRefs.length > 0) {
+        setIndexedDbImages((current) => ({ ...current, ...nextImageCache }));
+        updateSelectedCharacter(
+          characterId,
+          { images: normalizeCharacterImages([...currentImages, ...nextImageRefs]) },
+          workIndex,
+        );
+      }
+
+      if (ignoredCount > 0) {
+        showCharacterImageStatus(
+          `追加画像は最大${MAX_CHARACTER_EXTRA_IMAGES}枚です。${ignoredCount}件は追加されませんでした。`,
+        );
+      }
+    } catch {
+      setSaveState("画像保存に失敗");
+      showCharacterImageStatus("追加画像の保存に失敗しました。");
+    }
+  }
+
+  function deleteSelectedCharacterExtraImage(characterId, imageIndex, workIndex = 1) {
+    if (!selectedStar) return;
+    const character = getDisplayCharacters(selectedStar, workIndex).find((item) => item.id === characterId);
+    if (!character) return;
+    updateSelectedCharacter(
+      characterId,
+      {
+        images: getCharacterExtraImages(character).filter((_, index) => index !== imageIndex),
+      },
+      workIndex,
+    );
+  }
+
   async function uploadSelectedSceneImage(file) {
     if (!selectedStar || !file) return;
     try {
@@ -3245,6 +3869,7 @@ function App() {
           },
         }));
         setGlobalBgmUrl(audio.ref);
+        setGlobalBgmTitle((current) => current.trim() || bgmTitleFromFileName(audio.fileName));
       }
     } catch {
       setSaveState("BGM保存に失敗");
@@ -3265,7 +3890,10 @@ function App() {
             mimeType: audio.mimeType,
           },
         }));
-        updateSelected({ bgmUrl: audio.ref });
+        updateSelected({
+          bgmUrl: audio.ref,
+          ...(!selectedStar.bgmTitle?.trim() ? { bgmTitle: bgmTitleFromFileName(audio.fileName) } : {}),
+        });
       }
     } catch {
       setSaveState("BGM保存に失敗");
@@ -3274,10 +3902,11 @@ function App() {
 
   function clearGlobalBgm() {
     setGlobalBgmUrl(DEFAULT_GLOBAL_BGM_URL);
+    setGlobalBgmTitle("");
   }
 
   function clearSelectedStarBgm() {
-    updateSelected({ bgmUrl: "" });
+    updateSelected({ bgmUrl: "", bgmTitle: "" });
   }
 
   function clearSecondWork() {
@@ -3412,6 +4041,7 @@ function App() {
       z: 1.4,
       imageUrl: makeStarImage(color, index),
       bgmUrl: "",
+      bgmTitle: "",
       ...makeFeatureDefaults(name, index, description),
       updatedAt: new Date().toISOString(),
     };
@@ -3468,6 +4098,7 @@ function App() {
         stars,
         selectedId: selectedStar?.id,
         bgmUrl: globalBgmUrl,
+        globalBgmTitle,
         backgroundImageUrl,
       });
       downloadBlob(publicExport.blob, PUBLIC_EXPORT_FILENAME);
@@ -3514,60 +4145,103 @@ function App() {
             追加
           </button>
         </div>
+        {characterImageStatus ? <span className="hint-text character-image-status">{characterImageStatus}</span> : null}
         <div className="character-editor-list">
           {characters.length === 0 ? <div className="character-empty">キャラクター未登録</div> : null}
-          {characters.map((character, index) => (
-            <article className="character-editor-card" key={character.id}>
-              <div className="character-editor-head">
-                <strong>CHARACTER {String(index + 1).padStart(2, "0")}</strong>
-                <button
-                  className="character-remove"
-                  type="button"
-                  onClick={() => deleteSelectedCharacter(character.id, workIndex)}
-                  aria-label={`${character.name || "キャラクター"}を削除`}
-                >
-                  <Trash size={16} />
-                </button>
-              </div>
-              <label>
-                キャラ名
-                <input
-                  value={character.name}
-                  onChange={(event) => updateSelectedCharacter(character.id, { name: event.target.value }, workIndex)}
-                  placeholder="キャラクター名"
-                />
-              </label>
-              <label>
-                キャラ画像URL
-                <input
-                  value={editableImageValue(character.imageUrl)}
-                  onChange={(event) => updateSelectedCharacter(character.id, { imageUrl: event.target.value }, workIndex)}
-                  placeholder="キャラ画像のGitHub raw URL"
-                />
-              </label>
-              <div className="file-row">
-                <label className="file-button">
-                  <UploadSimple size={16} />
-                  キャラ画像を選択
+          {characters.map((character, index) => {
+            const extraImages = getCharacterExtraImages(character);
+
+            return (
+              <article className="character-editor-card" key={character.id}>
+                <div className="character-editor-head">
+                  <strong>CHARACTER {String(index + 1).padStart(2, "0")}</strong>
+                  <button
+                    className="character-remove"
+                    type="button"
+                    onClick={() => deleteSelectedCharacter(character.id, workIndex)}
+                    aria-label={`${character.name || "キャラクター"}を削除`}
+                  >
+                    <Trash size={16} />
+                  </button>
+                </div>
+                <label>
+                  キャラ名
                   <input
-                    type="file"
-                    accept="image/*"
-                    onChange={(event) => uploadSelectedCharacterImage(character.id, event.target.files?.[0], workIndex)}
+                    value={character.name}
+                    onChange={(event) => updateSelectedCharacter(character.id, { name: event.target.value }, workIndex)}
+                    placeholder="キャラクター名"
                   />
                 </label>
-                <span className="hint-text">このキャラだけに反映</span>
-              </div>
-              <label>
-                キャラ詳細文
-                <textarea
-                  value={character.description}
-                  onChange={(event) => updateSelectedCharacter(character.id, { description: event.target.value }, workIndex)}
-                  rows={5}
-                  placeholder="キャラクター紹介文やキャプションを貼り付け"
-                />
-              </label>
-            </article>
-          ))}
+                <label>
+                  キャラ画像URL
+                  <input
+                    value={editableImageValue(character.imageUrl)}
+                    onChange={(event) => updateSelectedCharacter(character.id, { imageUrl: event.target.value }, workIndex)}
+                    placeholder="キャラ画像のGitHub raw URL"
+                  />
+                </label>
+                <div className="file-row">
+                  <label className="file-button">
+                    <UploadSimple size={16} />
+                    キャラ画像を選択
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={(event) => uploadSelectedCharacterImage(character.id, event.target.files?.[0], workIndex)}
+                    />
+                  </label>
+                  <span className="hint-text">このキャラだけに反映</span>
+                </div>
+                <div className="file-row">
+                  <label className="file-button">
+                    <UploadSimple size={16} />
+                    追加画像をアップロード
+                    <input
+                      type="file"
+                      accept="image/*"
+                      multiple
+                      onChange={(event) => {
+                        const files = Array.from(event.target.files || []);
+                        uploadSelectedCharacterExtraImages(character.id, files, workIndex);
+                        event.target.value = "";
+                      }}
+                    />
+                  </label>
+                  <span className="hint-text">追加画像は最大{MAX_CHARACTER_EXTRA_IMAGES}枚</span>
+                </div>
+                {extraImages.length > 0 ? (
+                  <div className="character-extra-images" aria-label={`${character.name || "キャラクター"}の追加画像`}>
+                    {extraImages.map((imageUrl, imageIndex) => {
+                      const previewSrc = resolveImageSource(imageUrl);
+
+                      return (
+                        <div className="character-extra-image" key={`${imageUrl}-${imageIndex}`}>
+                          {previewSrc ? <img alt="" src={previewSrc} loading="lazy" decoding="async" /> : <span>画像</span>}
+                          <button
+                            className="character-extra-remove"
+                            type="button"
+                            onClick={() => deleteSelectedCharacterExtraImage(character.id, imageIndex, workIndex)}
+                            aria-label={`追加画像${imageIndex + 1}を削除`}
+                          >
+                            <X size={12} weight="bold" />
+                          </button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : null}
+                <label>
+                  キャラ詳細文
+                  <textarea
+                    value={character.description}
+                    onChange={(event) => updateSelectedCharacter(character.id, { description: event.target.value }, workIndex)}
+                    rows={5}
+                    placeholder="キャラクター紹介文やキャプションを貼り付け"
+                  />
+                </label>
+              </article>
+            );
+          })}
         </div>
       </div>
     );
@@ -3583,13 +4257,16 @@ function App() {
       <span className="shooting-star two" aria-hidden="true" />
       <header className="topbar" aria-label="星図ギャラリー操作バー">
         <div className="brand">
-          <span className="brand-orbit" aria-hidden="true">
-            <Planet size={28} weight="duotone" />
-          </span>
-          <div>
-            <p>A-plan</p>
-            <h1>星図ギャラリー</h1>
-          </div>
+          <img
+            id="brand-logo"
+            ref={brandLogoRef}
+            className="brand-logo"
+            src={hoshiyomiGingaLogoUrl}
+            alt="星詠銀河・星図"
+            width={LOGO_IMAGE_WIDTH}
+            height={LOGO_IMAGE_HEIGHT}
+            draggable="false"
+          />
         </div>
 
         <div className="top-actions editor-only">
@@ -3621,6 +4298,16 @@ function App() {
             <button className="mini-action" type="button" onClick={clearGlobalBgm}>
               クリア
             </button>
+          </div>
+          <div className="form-grid bgm-title-grid">
+            <label className="bgm-title-field">
+              BGMタイトル
+              <input
+                value={globalBgmTitle}
+                onChange={(event) => setGlobalBgmTitle(event.target.value)}
+                placeholder="表示するBGM名"
+              />
+            </label>
           </div>
           <strong className="bgm-status">現在: {globalBgmLabel}</strong>
         </div>
@@ -3667,6 +4354,35 @@ function App() {
           </button>
         ) : null}
       </header>
+
+      {introPhase !== "done" ? (
+        <div
+          className={`intro-overlay ${introPhase === "moving" ? "is-moving" : ""} ${
+            introPhase === "exiting" ? "is-exiting" : ""
+          }`}
+          style={{
+            "--intro-logo-x": introTransform.x,
+            "--intro-logo-y": introTransform.y,
+            "--intro-logo-scale": introTransform.scale,
+            "--intro-fade-ms": `${INTRO_FADE_MS}ms`,
+            "--intro-move-ms": `${INTRO_MOVE_MS}ms`,
+            "--intro-exit-ms": `${INTRO_EXIT_MS}ms`,
+          }}
+          onPointerDown={finishIntro}
+          aria-hidden="true"
+        >
+          <div ref={introLogoFrameRef} className="intro-logo-frame" onTransitionEnd={handleIntroMoveEnd}>
+            <img
+              className="intro-logo-image"
+              src={hoshiyomiGingaLogoUrl}
+              alt=""
+              width={LOGO_IMAGE_WIDTH}
+              height={LOGO_IMAGE_HEIGHT}
+              draggable="false"
+            />
+          </div>
+        </div>
+      ) : null}
 
       {exportStatus ? <div className="export-toast editor-only">{exportStatus}</div> : null}
 
@@ -3906,6 +4622,16 @@ function App() {
                     クリア
                   </button>
                 </div>
+                <div className="form-grid bgm-title-grid">
+                  <label>
+                    BGMタイトル
+                    <input
+                      value={selectedStar.bgmTitle}
+                      onChange={(event) => updateSelected({ bgmTitle: event.target.value })}
+                      placeholder="表示するBGM名"
+                    />
+                  </label>
+                </div>
                 <span className="hint-text">現在: {selectedBgmLabel}</span>
               </div>
               <div className="form-grid">
@@ -3987,9 +4713,10 @@ function App() {
               <div className="form-grid">
                 <label>
                   作品タイトル
-                  <input
+                  <textarea
                     value={selectedStar.workTitle}
                     onChange={(event) => updateSelected({ workTitle: event.target.value })}
+                    rows={2}
                     placeholder="リンク先作品名"
                   />
                 </label>
@@ -4059,9 +4786,10 @@ function App() {
                   <div className="form-grid">
                     <label>
                       作品タイトル
-                      <input
+                      <textarea
                         value={selectedStar.workTitle2}
                         onChange={(event) => updateSelected({ workTitle2: event.target.value })}
+                        rows={2}
                         placeholder="リンク先作品名"
                       />
                     </label>
@@ -4140,7 +4868,7 @@ function App() {
         <div className={`star-zoom-overlay ${zoomClosing ? "is-closing" : ""}`}>
           <div className="star-zoom-backdrop" onClick={closeZoomView} />
           {showStarDetail && (
-            <div className="star-detail-sheet">
+            <div ref={starDetailSheetRef} className="star-detail-sheet">
               <button className="star-detail-close" type="button" onClick={closeZoomView} aria-label="閉じる">
                 <X size={20} weight="bold" />
               </button>
@@ -4158,7 +4886,9 @@ function App() {
                 ))}
                 <div>
                   <span>BGM</span>
-                  <strong>{starBgmStatus(zoomedStar.bgmUrl, globalBgmUrl, indexedDbAudios)}</strong>
+                  <strong>
+                    {starBgmStatus(zoomedStar.bgmUrl, globalBgmUrl, indexedDbAudios, zoomedStar.bgmTitle, globalBgmTitle)}
+                  </strong>
                 </div>
               </div>
               {zoomedHasSecondWork ? (

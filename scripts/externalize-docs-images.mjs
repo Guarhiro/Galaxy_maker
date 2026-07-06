@@ -11,6 +11,7 @@ const readFromHead = process.argv.includes("--from-head");
 
 const targets = {
   background: { maxSize: 1600, quality: "82" },
+  logo: { maxSize: 1200, quality: "82" },
   star: { maxSize: 520, quality: "82" },
   standing: { maxSize: 768, quality: "82" },
   scene: { maxSize: 960, quality: "82" },
@@ -210,23 +211,46 @@ html = html.replace(/url\("(data:image\/[^"]+)"\)/, (_match, dataUrl) => {
   return `url("${backgroundPath}")`;
 });
 
+html = html.replace(/(<img[^>]+class="(?:brand-logo|intro-logo-image)"[^>]+src=")(data:image\/[^"]+)(")/g, (_match, prefix, dataUrl, suffix) => {
+  const logoPath = convertImage(dataUrl, "hoshiyomi-ginga-logo", "logo");
+  return `${prefix}${logoPath}${suffix}`;
+});
+
 const convertedStars = stars.map((star, index) => {
   const starKey = `${String(index + 1).padStart(2, "0")}-${sanitize(star.id, `star-${index + 1}`)}`;
+  const convertCharacter = (character, characterIndex, prefix) => ({
+    ...character,
+    imageUrl: convertImage(
+      character.imageUrl,
+      `${starKey}-${prefix}-${String(characterIndex + 1).padStart(2, "0")}`,
+      "character",
+    ),
+    images: Array.isArray(character.images)
+      ? character.images.map((imageUrl, imageIndex) =>
+          convertImage(
+            imageUrl,
+            `${starKey}-${prefix}-${String(characterIndex + 1).padStart(2, "0")}-${imageIndex + 2}`,
+            "character",
+          ),
+        )
+      : character.images,
+  });
   const converted = {
     ...star,
     imageUrl: convertImage(star.imageUrl, `${starKey}-star`, "star"),
     standingImageUrl: convertImage(star.standingImageUrl, `${starKey}-standing`, "standing"),
     sceneImageUrl: convertImage(star.sceneImageUrl, `${starKey}-scene`, "scene"),
+    sceneImageUrl2: convertImage(star.sceneImageUrl2, `${starKey}-scene2`, "scene"),
   };
   if (Array.isArray(star.characters)) {
-    converted.characters = star.characters.map((character, characterIndex) => ({
-      ...character,
-      imageUrl: convertImage(
-        character.imageUrl,
-        `${starKey}-character-${String(characterIndex + 1).padStart(2, "0")}`,
-        "character",
-      ),
-    }));
+    converted.characters = star.characters.map((character, characterIndex) =>
+      convertCharacter(character, characterIndex, "character"),
+    );
+  }
+  if (Array.isArray(star.characters2)) {
+    converted.characters2 = star.characters2.map((character, characterIndex) =>
+      convertCharacter(character, characterIndex, "character2"),
+    );
   }
   return converted;
 });
