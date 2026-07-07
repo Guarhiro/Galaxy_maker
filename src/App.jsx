@@ -253,7 +253,19 @@ function normalizeCharacters2(star) {
   );
 }
 
+function normalizeCharacters3(star) {
+  if (!Array.isArray(star?.characters3)) return [];
+
+  return star.characters3.slice(0, MAX_CHARACTERS_PER_STAR).map((character, index) =>
+    normalizeCharacter(character, index, `キャラクター ${index + 1}`, ""),
+  );
+}
+
 function getDisplayCharacters(star, workIndex = 1) {
+  if (workIndex === 3) {
+    return Array.isArray(star?.characters3) ? star.characters3 : [];
+  }
+
   if (workIndex === 2) {
     return Array.isArray(star?.characters2) ? star.characters2 : [];
   }
@@ -285,7 +297,25 @@ function hasSecondWork(star) {
   );
 }
 
+function hasThirdWork(star) {
+  return (
+    [star?.creatorName3, star?.sceneImageUrl3, star?.workTitle3, star?.workUrl3, star?.workDescription3].some((value) =>
+      String(value || "").trim(),
+    ) || getDisplayCharacters(star, 3).length > 0
+  );
+}
+
 function getWorkFields(star, workIndex = 1) {
+  if (workIndex === 3) {
+    return {
+      creatorName: star?.creatorName3 || "",
+      sceneImageUrl: star?.sceneImageUrl3 || "",
+      workTitle: star?.workTitle3 || "",
+      workUrl: star?.workUrl3 || "",
+      workDescription: star?.workDescription3 || "",
+    };
+  }
+
   if (workIndex === 2) {
     return {
       creatorName: star?.creatorName2 || "",
@@ -306,6 +336,7 @@ function getWorkFields(star, workIndex = 1) {
 }
 
 function workFallbackTitle(workIndex) {
+  if (workIndex === 3) return "作品③";
   return workIndex === 2 ? "作品②" : "作品①";
 }
 
@@ -330,9 +361,15 @@ function makeFeatureDefaults(name, index, description = "") {
     workTitle2: "",
     workUrl2: "",
     workDescription2: "",
+    creatorName3: "",
+    sceneImageUrl3: "",
+    workTitle3: "",
+    workUrl3: "",
+    workDescription3: "",
     pastedText,
     characters: [makeCharacterDefaults(name, 0, pastedText)],
     characters2: [],
+    characters3: [],
     workDescription:
       index === 0
         ? "銀河の奥でひらかれる、気高く甘いティータイム。星を選ぶと専用BGMに切り替わります。"
@@ -465,6 +502,7 @@ function normalizeStar(star, index) {
   const featureDefaults = makeFeatureDefaults(name, index, description);
   const characters = normalizeCharacters(star, featureDefaults);
   const characters2 = normalizeCharacters2(star);
+  const characters3 = normalizeCharacters3(star);
   const primaryCharacter = getPrimaryCharacterFields(
     characters,
     featureDefaults.characterName,
@@ -492,9 +530,15 @@ function normalizeStar(star, index) {
     workTitle2: star?.workTitle2 ?? "",
     workUrl2: star?.workUrl2 ?? "",
     workDescription2: star?.workDescription2 ?? "",
+    creatorName3: star?.creatorName3 ?? "",
+    sceneImageUrl3: star?.sceneImageUrl3 ?? "",
+    workTitle3: star?.workTitle3 ?? "",
+    workUrl3: star?.workUrl3 ?? "",
+    workDescription3: star?.workDescription3 ?? "",
     pastedText: primaryCharacter.pastedText,
     characters,
     characters2,
+    characters3,
     workDescription: star?.workDescription ?? featureDefaults.workDescription,
     workTitle: star?.workTitle ?? featureDefaults.workTitle,
     workUrl: star?.workUrl ?? featureDefaults.workUrl,
@@ -702,12 +746,15 @@ async function storeFileAsIndexedDbAudio(file) {
 function collectImageValues(stars, backgroundImageUrl) {
   const values = [backgroundImageUrl];
   stars.forEach((star) => {
-    values.push(star.imageUrl, star.sceneImageUrl, star.sceneImageUrl2, star.standingImageUrl);
+    values.push(star.imageUrl, star.sceneImageUrl, star.sceneImageUrl2, star.sceneImageUrl3, star.standingImageUrl);
     if (Array.isArray(star.characters)) {
       star.characters.forEach((character) => values.push(...getCharacterImageSources(character)));
     }
     if (Array.isArray(star.characters2)) {
       star.characters2.forEach((character) => values.push(...getCharacterImageSources(character)));
+    }
+    if (Array.isArray(star.characters3)) {
+      star.characters3.forEach((character) => values.push(...getCharacterImageSources(character)));
     }
   });
   return values.filter(Boolean);
@@ -768,14 +815,25 @@ async function migrateDataImageAssets(stars, backgroundImageUrl) {
             })),
           )
         : star.characters2;
+      const characters3 = Array.isArray(star.characters3)
+        ? await Promise.all(
+            star.characters3.map(async (character) => ({
+              ...character,
+              imageUrl: await migrateValue(character.imageUrl),
+              images: await Promise.all(getCharacterExtraImages(character).map(migrateValue)),
+            })),
+          )
+        : star.characters3;
       const migratedStar = {
         ...star,
         imageUrl: await migrateValue(star.imageUrl),
         sceneImageUrl: await migrateValue(star.sceneImageUrl),
         sceneImageUrl2: await migrateValue(star.sceneImageUrl2),
+        sceneImageUrl3: await migrateValue(star.sceneImageUrl3),
         standingImageUrl: await migrateValue(star.standingImageUrl),
         characters,
         characters2,
+        characters3,
       };
       if (Array.isArray(characters) && characters.length > 0) {
         Object.assign(migratedStar, getPrimaryCharacterFields(characters, star.name, star.description));
@@ -1248,7 +1306,8 @@ async function buildExternalPublicExport({ stars, selectedId, bgmUrl, globalBgmT
       const starKey = sanitizeAssetName(star.id || `star-${index + 1}`, `star-${index + 1}`);
       const sourceCharacters = getDisplayCharacters(star, 1);
       const sourceCharacters2 = getDisplayCharacters(star, 2);
-      const [starImage, sceneImage, sceneImage2, starBgm, characters, characters2] = await Promise.all([
+      const sourceCharacters3 = getDisplayCharacters(star, 3);
+      const [starImage, sceneImage, sceneImage2, sceneImage3, starBgm, characters, characters2, characters3] = await Promise.all([
         resolvePublicImageAsset(
           star.imageUrl,
           `${String(index + 1).padStart(2, "0")}-${starKey}-star`,
@@ -1266,6 +1325,13 @@ async function buildExternalPublicExport({ stars, selectedId, bgmUrl, globalBgmT
         resolvePublicImageAsset(
           star.sceneImageUrl2,
           `${String(index + 1).padStart(2, "0")}-${starKey}-scene2`,
+          PUBLIC_IMAGE_TARGETS.scene,
+          imageCache,
+          files,
+        ),
+        resolvePublicImageAsset(
+          star.sceneImageUrl3,
+          `${String(index + 1).padStart(2, "0")}-${starKey}-scene3`,
           PUBLIC_IMAGE_TARGETS.scene,
           imageCache,
           files,
@@ -1293,19 +1359,30 @@ async function buildExternalPublicExport({ stars, selectedId, bgmUrl, globalBgmT
             ),
           ),
         ),
+        Promise.all(
+          sourceCharacters3.map((character, characterIndex) =>
+            resolvePublicCharacter(
+              character,
+              `${String(index + 1).padStart(2, "0")}-${starKey}-character3-${String(characterIndex + 1).padStart(2, "0")}`,
+            ),
+          ),
+        ),
       ]);
       return {
         ...star,
         ...getPrimaryCharacterFields(characters, star.name, star.description),
         characters,
         characters2,
+        characters3,
         imageUrl: starImage.src,
         sceneImageUrl: sceneImage.src,
         sceneImageUrl2: sceneImage2.src,
+        sceneImageUrl3: sceneImage3.src,
         bgmUrl: starBgm.src,
         imageEmbedded: !starImage.missed,
         sceneImageEmbedded: !sceneImage.missed || !star.sceneImageUrl,
         sceneImage2Embedded: !sceneImage2.missed || !star.sceneImageUrl2,
+        sceneImage3Embedded: !sceneImage3.missed || !star.sceneImageUrl3,
         bgmEmbedded: !starBgm.missed || !star.bgmUrl,
         missedCharacterAssets:
           characters.reduce(
@@ -1313,6 +1390,10 @@ async function buildExternalPublicExport({ stars, selectedId, bgmUrl, globalBgmT
             0,
           ) +
           characters2.reduce(
+            (total, character) => total + (character.imageEmbedded ? 0 : 1) + (character.missedImageAssets || 0),
+            0,
+          ) +
+          characters3.reduce(
             (total, character) => total + (character.imageEmbedded ? 0 : 1) + (character.missedImageAssets || 0),
             0,
           ),
@@ -1327,6 +1408,7 @@ async function buildExternalPublicExport({ stars, selectedId, bgmUrl, globalBgmT
         (star.imageEmbedded ? 0 : 1) +
         (star.sceneImageEmbedded ? 0 : 1) +
         (star.sceneImage2Embedded ? 0 : 1) +
+        (star.sceneImage3Embedded ? 0 : 1) +
         (star.bgmEmbedded ? 0 : 1) +
         (star.missedCharacterAssets || 0),
       0,
@@ -2592,6 +2674,10 @@ function renderImageOrEmpty(src, className, label, alt, tagName = "div") {
 }
 
 function getCharacters(star, workIndex) {
+  if (workIndex === 3) {
+    return Array.isArray(star.characters3) ? star.characters3 : [];
+  }
+
   if (workIndex === 2) {
     return Array.isArray(star.characters2) ? star.characters2 : [];
   }
@@ -2627,7 +2713,22 @@ function hasSecondWork(star) {
   }) || getCharacters(star, 2).length > 0;
 }
 
+function hasThirdWork(star) {
+  return [star.creatorName3, star.sceneImageUrl3, star.workTitle3, star.workUrl3, star.workDescription3].some(function(value) {
+    return String(value || "").trim();
+  }) || getCharacters(star, 3).length > 0;
+}
+
 function getWork(star, workIndex) {
+  if (workIndex === 3) {
+    return {
+      creatorName: star.creatorName3 || "",
+      sceneImageUrl: star.sceneImageUrl3 || "",
+      workTitle: star.workTitle3 || "",
+      workUrl: star.workUrl3 || "",
+      workDescription: star.workDescription3 || ""
+    };
+  }
   if (workIndex === 2) {
     return {
       creatorName: star.creatorName2 || "",
@@ -2647,6 +2748,7 @@ function getWork(star, workIndex) {
 }
 
 function workFallbackTitle(workIndex) {
+  if (workIndex === 3) return "作品③";
   return workIndex === 2 ? "作品②" : "作品①";
 }
 
@@ -2760,7 +2862,7 @@ function setFeatureOrigin(originEl) {
 function openFeature(id, originEl, workIndex) {
   selectedId = id;
   featureId = id;
-  featureWorkIndex = workIndex === 2 ? 2 : 1;
+  featureWorkIndex = workIndex === 3 ? 3 : workIndex === 2 ? 2 : 1;
   setFeatureOrigin(originEl);
   const star = pickStar();
   map.classList.add("is-feature-open");
@@ -2824,13 +2926,24 @@ function showStarDetail(star) {
     .join('');
   var bgmLabel = publicStarBgmLabel(star);
   var hasSecond = hasSecondWork(star);
-  var workButtons = hasSecond
-    ? '<div class="star-detail-work-count">WORKS ×2</div>' +
+  var hasThird = hasThirdWork(star);
+  var workButtons;
+  if (hasThird) {
+    workButtons = '<div class="star-detail-work-count">WORKS ×3</div>' +
       '<div class="star-detail-work-actions">' +
         '<button class="star-detail-work-btn" type="button" data-work-index="1">' + escapeHtml(workButtonLabel(star, 1)) + '</button>' +
         '<button class="star-detail-work-btn" type="button" data-work-index="2">' + escapeHtml(workButtonLabel(star, 2)) + '</button>' +
-      '</div>'
-    : '<button class="star-detail-work-btn" type="button" data-work-index="1">作品詳細を見る</button>';
+        '<button class="star-detail-work-btn" type="button" data-work-index="3">' + escapeHtml(workButtonLabel(star, 3)) + '</button>' +
+      '</div>';
+  } else if (hasSecond) {
+    workButtons = '<div class="star-detail-work-count">WORKS ×2</div>' +
+      '<div class="star-detail-work-actions">' +
+        '<button class="star-detail-work-btn" type="button" data-work-index="1">' + escapeHtml(workButtonLabel(star, 1)) + '</button>' +
+        '<button class="star-detail-work-btn" type="button" data-work-index="2">' + escapeHtml(workButtonLabel(star, 2)) + '</button>' +
+      '</div>';
+  } else {
+    workButtons = '<button class="star-detail-work-btn" type="button" data-work-index="1">作品詳細を見る</button>';
+  }
   starDetailSheet.innerHTML =
     '<button class="star-detail-close" id="starDetailClose" type="button" aria-label="閉じる">\\u00d7</button>' +
     '<div class="star-detail-header">' +
@@ -3279,6 +3392,7 @@ function App() {
   const [indexedDbImages, setIndexedDbImages] = useState({});
   const [indexedDbAudios, setIndexedDbAudios] = useState({});
   const [isSecondWorkEditorOpen, setIsSecondWorkEditorOpen] = useState(false);
+  const [isThirdWorkEditorOpen, setIsThirdWorkEditorOpen] = useState(false);
   const [introPhase, setIntroPhase] = useState(getInitialIntroPhase);
   const [introTransform, setIntroTransform] = useState({ x: "0px", y: "0px", scale: 1 });
   const audioRef = useRef(null);
@@ -3685,6 +3799,11 @@ function App() {
     if (!selectedStar) return;
     const characters = nextCharacters.slice(0, MAX_CHARACTERS_PER_STAR);
 
+    if (workIndex === 3) {
+      updateSelected({ characters3: characters });
+      return;
+    }
+
     if (workIndex === 2) {
       updateSelected({ characters2: characters });
       return;
@@ -3713,7 +3832,7 @@ function App() {
     const index = currentCharacters.length;
     const character = {
       ...makeCharacterDefaults(`キャラクター ${index + 1}`, index),
-      id: `character${workIndex === 2 ? "2" : ""}-${Date.now()}-${index}`,
+      id: `character${workIndex === 3 ? "3" : workIndex === 2 ? "2" : ""}-${Date.now()}-${index}`,
     };
     commitSelectedCharacters([...currentCharacters, character], workIndex);
   }
@@ -3854,6 +3973,19 @@ function App() {
     }
   }
 
+  async function uploadSelectedSceneImage3(file) {
+    if (!selectedStar || !file) return;
+    try {
+      const { ref, dataUrl } = await storeFileAsIndexedDbImage(file);
+      if (ref) {
+        setIndexedDbImages((current) => ({ ...current, [ref]: dataUrl }));
+        updateSelected({ sceneImageUrl3: ref });
+      }
+    } catch {
+      setSaveState("画像保存に失敗");
+    }
+  }
+
   async function uploadGlobalBgm(file) {
     if (!file) return;
     setSaveState("BGM保存中...");
@@ -3923,6 +4055,20 @@ function App() {
     setIsSecondWorkEditorOpen(false);
   }
 
+  function clearThirdWork() {
+    if (!selectedStar) return;
+    if (!window.confirm("作品③の入力内容とキャラクターを削除しますか？")) return;
+    updateSelected({
+      creatorName3: "",
+      sceneImageUrl3: "",
+      workTitle3: "",
+      workUrl3: "",
+      workDescription3: "",
+      characters3: [],
+    });
+    setIsThirdWorkEditorOpen(false);
+  }
+
   function setPreviewMode(nextValue) {
     setIsPreviewMode(nextValue);
     if (!nextValue) {
@@ -3960,7 +4106,7 @@ function App() {
   function openPopup(starId, element, workIndex = 1) {
     setPopupOrigin(originFromElement(element));
     triggerElRef.current = element || null;
-    setActivePopupWorkIndex(workIndex === 2 ? 2 : 1);
+    setActivePopupWorkIndex(workIndex === 3 ? 3 : workIndex === 2 ? 2 : 1);
     setActivePopupStarId(starId);
   }
 
@@ -4121,15 +4267,18 @@ function App() {
 
   const selectedCharacters = getDisplayCharacters(selectedStar, 1);
   const selectedCharacters2 = getDisplayCharacters(selectedStar, 2);
+  const selectedCharacters3 = getDisplayCharacters(selectedStar, 3);
   const showSecondWorkEditor = hasSecondWork(selectedStar) || isSecondWorkEditorOpen;
+  const showThirdWorkEditor = hasThirdWork(selectedStar) || isThirdWorkEditorOpen;
   const zoomedHasSecondWork = zoomedStar ? hasSecondWork(zoomedStar) : false;
+  const zoomedHasThirdWork = zoomedStar ? hasThirdWork(zoomedStar) : false;
 
   function renderCharacterEditor(workIndex = 1) {
-    const characters = workIndex === 2 ? selectedCharacters2 : selectedCharacters;
-    const workLabel = workIndex === 2 ? "作品②" : "作品①";
+    const characters = workIndex === 3 ? selectedCharacters3 : workIndex === 2 ? selectedCharacters2 : selectedCharacters;
+    const workLabel = workIndex === 3 ? "作品③" : workIndex === 2 ? "作品②" : "作品①";
 
     return (
-      <div className={`form-section character-section ${workIndex === 2 ? "is-secondary-work" : ""}`}>
+      <div className={`form-section character-section ${workIndex === 2 || workIndex === 3 ? "is-secondary-work" : ""}`}>
         <div className="form-title form-title-row">
           <span className="form-title-label">
             <PencilSimple size={17} />
@@ -4821,6 +4970,87 @@ function App() {
               </button>
             )}
 
+            {showSecondWorkEditor ? (
+              showThirdWorkEditor ? (
+                <>
+                  <div className="form-section is-secondary-work">
+                    <div className="form-title form-title-row">
+                      <span className="form-title-label">
+                        <ImageSquare size={17} />
+                        <span>作品情報③</span>
+                      </span>
+                      <button className="mini-action is-danger" type="button" onClick={clearThirdWork}>
+                        <Trash size={16} />
+                        作品③を削除
+                      </button>
+                    </div>
+                    <label>
+                      クリエイター名
+                      <input
+                        value={selectedStar.creatorName3}
+                        onChange={(event) => updateSelected({ creatorName3: event.target.value })}
+                        placeholder="例: Guarhiro"
+                      />
+                    </label>
+                    <label>
+                      作品タイトル画像URL
+                      <input
+                        value={editableImageValue(selectedStar.sceneImageUrl3)}
+                        onChange={(event) => updateSelected({ sceneImageUrl3: event.target.value })}
+                        placeholder="作品タイトル画像・キービジュアルURL"
+                      />
+                    </label>
+                    <div className="file-row">
+                      <label className="file-button">
+                        <UploadSimple size={16} />
+                        作品画像を選択
+                        <input
+                          type="file"
+                          accept="image/*"
+                          onChange={(event) => uploadSelectedSceneImage3(event.target.files?.[0])}
+                        />
+                      </label>
+                      <span className="hint-text">3作品目のポップアップ上部</span>
+                    </div>
+                    <div className="form-grid">
+                      <label>
+                        作品タイトル
+                        <textarea
+                          value={selectedStar.workTitle3}
+                          onChange={(event) => updateSelected({ workTitle3: event.target.value })}
+                          rows={2}
+                          placeholder="リンク先作品名"
+                        />
+                      </label>
+                      <label>
+                        作品URL
+                        <input
+                          value={selectedStar.workUrl3}
+                          onChange={(event) => updateSelected({ workUrl3: event.target.value })}
+                          placeholder="https://..."
+                        />
+                      </label>
+                    </div>
+                    <label>
+                      作品詳細
+                      <textarea
+                        value={selectedStar.workDescription3}
+                        onChange={(event) => updateSelected({ workDescription3: event.target.value })}
+                        rows={4}
+                        placeholder="作品の紹介文・あらすじなど"
+                      />
+                    </label>
+                  </div>
+                  {renderCharacterEditor(3)}
+                </>
+              ) : (
+                <button className="add-secondary-work" type="button" onClick={() => setIsThirdWorkEditorOpen(true)}>
+                  <Plus size={16} weight="bold" />
+                  作品③を追加
+                </button>
+              )
+            ) : null}
+
             <div className="form-section">
               <div className="form-title">
                 <Planet size={17} />
@@ -4891,7 +5121,22 @@ function App() {
                   </strong>
                 </div>
               </div>
-              {zoomedHasSecondWork ? (
+              {zoomedHasThirdWork ? (
+                <>
+                  <div className="star-detail-work-count">WORKS ×3</div>
+                  <div className="star-detail-work-actions">
+                    <button className="star-detail-work-btn" type="button" onClick={() => openWorkFromZoom(1)}>
+                      {workButtonLabel(zoomedStar, 1)}
+                    </button>
+                    <button className="star-detail-work-btn" type="button" onClick={() => openWorkFromZoom(2)}>
+                      {workButtonLabel(zoomedStar, 2)}
+                    </button>
+                    <button className="star-detail-work-btn" type="button" onClick={() => openWorkFromZoom(3)}>
+                      {workButtonLabel(zoomedStar, 3)}
+                    </button>
+                  </div>
+                </>
+              ) : zoomedHasSecondWork ? (
                 <>
                   <div className="star-detail-work-count">WORKS ×2</div>
                   <div className="star-detail-work-actions">
