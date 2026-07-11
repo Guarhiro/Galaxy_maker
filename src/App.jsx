@@ -3495,6 +3495,29 @@ function App() {
     }, 4200);
   }
 
+  useEffect(() => {
+    // 画像・音声は IndexedDB に保存している。永続化を要求しておかないと、
+    // ブラウザがストレージ逼迫時に「best-effort」扱いで中身を退避（削除）し、
+    // 公開ZIP書き出し時にアセットが欠落する（音声が丸ごと消える等）。
+    let cancelled = false;
+    (async () => {
+      try {
+        if (!navigator.storage?.persist) return;
+        const alreadyPersisted = navigator.storage.persisted
+          ? await navigator.storage.persisted()
+          : false;
+        if (!cancelled && !alreadyPersisted) {
+          await navigator.storage.persist();
+        }
+      } catch {
+        // 永続化要求に失敗しても致命的ではないので無視する
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   useEffect(
     () => () => {
       if (characterImageStatusTimerRef.current) {
@@ -4247,6 +4270,22 @@ function App() {
         globalBgmTitle,
         backgroundImageUrl,
       });
+      if (publicExport.missedAssets > 0) {
+        // アセットが欠落したまま書き出すと、音声や画像が抜けた不完全なZIPになる。
+        // ブラウザによる IndexedDB 退避などでアセットが失われている可能性が高いので、
+        // 無言で壊れたZIPを作らず、明示的に確認する。
+        const proceed = window.confirm(
+          `⚠️ アセットが ${publicExport.missedAssets} 件見つからず、公開ZIPに同梱できません。\n` +
+            `（同梱できる分: 画像 ${publicExport.imageAssetCount}件 / 音声 ${publicExport.audioAssetCount}件）\n\n` +
+            `ブラウザのストレージ退避などで画像・音声が失われている可能性があります。\n` +
+            `このまま書き出すと欠落したまま不完全なZIPになります。書き出しますか？`,
+        );
+        if (!proceed) {
+          setExportStatus(`書き出しを中止しました（未同梱 ${publicExport.missedAssets}件）`);
+          window.setTimeout(() => setExportStatus(""), 4000);
+          return;
+        }
+      }
       downloadBlob(publicExport.blob, PUBLIC_EXPORT_FILENAME);
       setExportStatus(
         publicExport.missedAssets > 0
